@@ -7,7 +7,8 @@
       "Bash(alembic *)",
       "Bash(uvicorn *)",
       "Bash(pip install *)",
-      "Bash(pip freeze)"
+      "Bash(pip freeze)",
+      "Bash(git push*)"
     ],
     "deny": [
       "Read(.env)",
