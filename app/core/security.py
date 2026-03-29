@@ -23,7 +23,9 @@ async def get_jwks() -> dict:
             response.raise_for_status()
             _jwks_cache = response.json()
     except httpx.HTTPError as exc:
-        raise UnauthorizedException(f"Failed to fetch JWKS from Keycloak: {exc}") from exc
+        raise UnauthorizedException(
+            f"Failed to fetch JWKS from Keycloak: {exc}"
+        ) from exc
     if _jwks_cache is None:
         raise UnauthorizedException("Empty JWKS response from Keycloak.")
     return _jwks_cache

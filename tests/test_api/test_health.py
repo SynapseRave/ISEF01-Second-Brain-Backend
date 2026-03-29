@@ -24,7 +24,9 @@ async def test_protected_route_without_token_returns_401(client: AsyncClient) ->
 
 
 @pytest.mark.asyncio
-async def test_protected_route_with_invalid_token_returns_401(client: AsyncClient) -> None:
+async def test_protected_route_with_invalid_token_returns_401(
+    client: AsyncClient,
+) -> None:
     """Any non-health route with a malformed token must return 401."""
     response = await client.get(
         "/api/input", headers={"Authorization": "Bearer not-a-valid-jwt"}
