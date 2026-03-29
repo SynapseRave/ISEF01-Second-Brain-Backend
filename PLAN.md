@@ -82,26 +82,26 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 ## Phase 2: FastAPI App + Uvicorn Server
 
 ### 2.1 Config (pydantic-settings)
-- [x] `app/core/config.py` — Settings-Klasse mit:
+- [ ] `app/core/config.py` — Settings-Klasse mit:
   - `DATABASE_URL`
   - `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`
   - `CORS_ORIGINS` (fuer Frontend)
   - Laden aus `.env`
 
 ### 2.2 FastAPI App Entry
-- [x] `app/main.py`:
+- [ ] `app/main.py`:
   - FastAPI-Instanz mit Lifespan (startup/shutdown)
   - CORS Middleware (Origins aus Config)
   - Exception Handler registrieren
   - Router einbinden
 
 ### 2.3 Health Endpunkt
-- [x] `app/api/routes/health.py`:
+- [ ] `app/api/routes/health.py`:
   - `GET /health` — gibt `{"status": "ok"}` zurueck
   - Kein Auth erforderlich
 
 ### 2.4 Custom Exceptions
-- [x] `app/core/exceptions.py`:
+- [ ] `app/core/exceptions.py`:
   - `SecondBrainException` Basisklasse
   - `NotFoundException`, `UnauthorizedException`
   - FastAPI Exception Handler registrieren
@@ -115,29 +115,29 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 ## Phase 3: PostgreSQL einbinden
 
 ### 3.1 Async Database Setup
-- [x] `app/db/database.py`:
+- [ ] `app/db/database.py`:
   - `create_async_engine` mit `DATABASE_URL`
   - `async_sessionmaker` fuer `AsyncSession`
   - `get_db` Dependency (yields session)
 
 ### 3.2 Alembic einrichten
-- [x] `alembic init alembic` (async template)
-- [x] `alembic/env.py` anpassen:
+- [ ] `alembic init alembic` (async template)
+- [ ] `alembic/env.py` anpassen:
   - `target_metadata` auf SQLAlchemy Base
   - Async Engine verwenden
-- [x] `alembic.ini` — `sqlalchemy.url` aus ENV
+- [ ] `alembic.ini` — `sqlalchemy.url` aus ENV
 
 ### 3.3 Erstes DB-Modell (Platzhalter)
-- [x] `app/db/models/user_input.py`:
+- [ ] `app/db/models/user_input.py`:
   - `UserInput` Modell (id, user_id, prompt, response, created_at)
   - Dient als Grundlage fuer spaetere Input-Historie
 
 ### 3.4 Erste Migration
-- [x] `alembic revision --autogenerate -m "create user_input table"`
-- [x] Migration laeuft erfolgreich mit `alembic upgrade head`
+- [ ] `alembic revision --autogenerate -m "create user_input table"`
+- [ ] Migration laeuft erfolgreich mit `alembic upgrade head`
 
 ### 3.5 DB Dependency
-- [x] `app/api/dependencies.py`:
+- [ ] `app/api/dependencies.py`:
   - `get_db` als FastAPI Dependency
 
 ---
@@ -145,13 +145,13 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 ## Phase 4: Keycloak Auth Middleware
 
 ### 4.1 Security Module
-- [x] `app/core/security.py`:
+- [ ] `app/core/security.py`:
   - Keycloak Public Key abrufen (JWKS Endpoint)
   - JWT Validierung (Signatur, Ablauf, Issuer)
   - `decode_token()` Funktion
 
 ### 4.2 Auth Dependency
-- [x] `app/api/dependencies.py`:
+- [ ] `app/api/dependencies.py`:
   - `get_current_user` Dependency:
     - Liest `Authorization: Bearer <token>` Header
     - Validiert JWT via `security.py`
@@ -159,7 +159,7 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
     - Wirft 401 bei ungueltigem/fehlendem Token
 
 ### 4.3 Auth Middleware (optional, falls global)
-- [x] `app/api/middleware/auth.py`:
+- [ ] `app/api/middleware/auth.py`:
   - Middleware die `/health` ausschliesst
   - Alle anderen Routes erfordern validen JWT
 
@@ -168,19 +168,19 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 ## Phase 5: Test-Infrastruktur
 
 ### 5.1 Test-Setup
-- [x] `tests/conftest.py`:
+- [ ] `tests/conftest.py`:
   - Test-DB (SQLite async oder separate Postgres Test-DB)
   - `AsyncClient` (httpx) fuer API-Tests
   - Auth-Mock: Fixture die JWT-Validierung ueberspringt
   - DB-Session Fixture mit Rollback nach jedem Test
 
 ### 5.2 Erster Test
-- [x] `tests/test_api/test_health.py`:
+- [ ] `tests/test_api/test_health.py`:
   - Test: `GET /health` gibt 200 + `{"status": "ok"}`
   - Test: Geschuetzter Endpunkt ohne Token gibt 401
 
 ### 5.3 Pytest Config
-- [x] `pyproject.toml` pytest-Section:
+- [ ] `pyproject.toml` pytest-Section:
   - `asyncio_mode = "auto"`
   - Test-Pfade
 
@@ -189,12 +189,12 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 ## Phase 6: Dockerfile
 
 ### 6.1 Dockerfile
-- [x] `Dockerfile`:
+- [ ] `Dockerfile`:
   - Python 3.12 slim Base Image
   - `requirements.txt` installieren
   - App kopieren
   - Uvicorn als Entrypoint
-- [x] `.dockerignore` (venv, .git, __pycache__, .env, tests)
+- [ ] `.dockerignore` (venv, .git, __pycache__, .env, tests)
 
 ---
 
