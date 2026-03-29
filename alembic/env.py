@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.db.database import Base
 from app.db.models import (
     user_input,  # noqa: F401 — import models so they register on Base
+    user_settings,  # noqa: F401
 )
 
 config = context.config

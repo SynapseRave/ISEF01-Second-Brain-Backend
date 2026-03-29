@@ -15,6 +15,8 @@ os.environ.setdefault(
 os.environ.setdefault("KEYCLOAK_URL", "http://localhost:8080")
 os.environ.setdefault("KEYCLOAK_REALM", "test-realm")
 os.environ.setdefault("KEYCLOAK_CLIENT_ID", "test-client")
+os.environ.setdefault("KEYCLOAK_ADMIN_USER", "admin")
+os.environ.setdefault("KEYCLOAK_ADMIN_PASSWORD", "admin")
 
 from app.db.database import Base  # noqa: E402
 from app.main import app  # noqa: E402
@@ -89,9 +91,15 @@ async def authenticated_client() -> AsyncGenerator[AsyncClient, None]:
 
     Injects a fixed user_id ("test-user-123") as the current user.
     """
-    with patch(
-        "app.core.security.decode_token",
-        return_value={"sub": "test-user-123"},
+    with (
+        patch(
+            "app.api.middleware.auth.decode_token",
+            return_value={"sub": "test-user-123"},
+        ),
+        patch(
+            "app.api.dependencies.decode_token",
+            return_value={"sub": "test-user-123"},
+        ),
     ):
         async with AsyncClient(
             transport=ASGITransport(app=app),
