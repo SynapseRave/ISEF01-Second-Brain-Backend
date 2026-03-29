@@ -26,6 +26,8 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(length=255), nullable=False),
         sa.Column("prompt", sa.Text(), nullable=False),
         sa.Column("response", sa.Text(), nullable=True),
+        sa.Column("tool", sa.String(length=100), nullable=True),
+        sa.Column("model", sa.String(length=100), nullable=True),
         sa.Column("deep_link", sa.String(length=1024), nullable=True),
         sa.Column(
             "created_at",
