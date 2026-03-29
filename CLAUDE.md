@@ -160,3 +160,5 @@ Verbindungsstatus je Dienst (connected/disconnected/error).
 - MCP servers here are APPLICATION features, not Claude Code tooling
 - Always run tests after code changes
 - Never commit directly to `main` or `develop` — always use feature/bugfix branches + PR
+- After implementation create a pull request for the feature branch
+- Always test new endpoints via test-endpoint skill
