@@ -56,6 +56,8 @@ services:
       KEYCLOAK_PUBLIC_URL: http://localhost:8080
       KEYCLOAK_REALM: second-brain
       KEYCLOAK_CLIENT_ID: backend
+      KEYCLOAK_ADMIN_USER: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
       CORS_ORIGINS: '["http://localhost:3000"]'
     depends_on:
       postgres:

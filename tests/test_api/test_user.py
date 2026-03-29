@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -43,6 +43,15 @@ async def user_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, N
     del app.dependency_overrides[get_db]
 
 
+@pytest.fixture
+def mock_keycloak_update() -> AsyncMock:
+    with patch(
+        "app.services.user.update_keycloak_user",
+        new_callable=AsyncMock,
+    ) as mock:
+        yield mock
+
+
 @pytest.mark.asyncio
 async def test_get_user_returns_profile_and_settings(
     user_client: AsyncClient,
@@ -76,15 +85,18 @@ async def test_get_user_unauthenticated(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_put_user_updates_preferred_llm(
     user_client: AsyncClient,
+    mock_keycloak_update: AsyncMock,
 ) -> None:
     response = await user_client.put("/api/user/", json={"preferred_llm": "openai"})
     assert response.status_code == 200
     assert response.json()["settings"]["preferred_llm"] == "openai"
+    mock_keycloak_update.assert_called_once_with("test-user-123", None, None)
 
 
 @pytest.mark.asyncio
 async def test_put_user_updates_default_targets(
     user_client: AsyncClient,
+    mock_keycloak_update: AsyncMock,
 ) -> None:
     payload = {"default_targets": {"note": "notion", "task": "todoist"}}
     response = await user_client.put("/api/user/", json=payload)
@@ -92,6 +104,29 @@ async def test_put_user_updates_default_targets(
     targets = response.json()["settings"]["default_targets"]
     assert targets["note"] == "notion"
     assert targets["task"] == "todoist"
+
+
+@pytest.mark.asyncio
+async def test_put_user_updates_email(
+    user_client: AsyncClient,
+    mock_keycloak_update: AsyncMock,
+) -> None:
+    response = await user_client.put("/api/user/", json={"email": "new@example.com"})
+    assert response.status_code == 200
+    assert response.json()["profile"]["email"] == "new@example.com"
+    mock_keycloak_update.assert_called_once_with(
+        "test-user-123", "new@example.com", None
+    )
+
+
+@pytest.mark.asyncio
+async def test_put_user_updates_password(
+    user_client: AsyncClient,
+    mock_keycloak_update: AsyncMock,
+) -> None:
+    response = await user_client.put("/api/user/", json={"password": "newpass123"})
+    assert response.status_code == 200
+    mock_keycloak_update.assert_called_once_with("test-user-123", None, "newpass123")
 
 
 @pytest.mark.asyncio

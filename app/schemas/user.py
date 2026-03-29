@@ -26,8 +26,13 @@ class UserResponse(BaseModel):
     settings: UserSettingsData
 
 
-class UserSettingsUpdate(BaseModel):
+class UserUpdate(BaseModel):
     """Request body for PUT /api/user — all fields optional for partial update."""
 
+    # Keycloak profile fields
+    email: str | None = None
+    password: str | None = None
+
+    # App-specific settings
     preferred_llm: str | None = None
     default_targets: dict | None = None
