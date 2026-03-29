@@ -17,13 +17,16 @@ async def get_jwks() -> dict:
         f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
         "/protocol/openid-connect/certs"
     )
-    async with httpx.AsyncClient() as client:
-        response = await client.get(jwks_url)
-        response.raise_for_status()
-        _jwks_cache = response.json()
-        if _jwks_cache is None:
-            raise UnauthorizedException("Failed to fetch JWKS from Keycloak.")
-        return _jwks_cache
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(jwks_url)
+            response.raise_for_status()
+            _jwks_cache = response.json()
+    except httpx.HTTPError as exc:
+        raise UnauthorizedException(f"Failed to fetch JWKS from Keycloak: {exc}") from exc
+    if _jwks_cache is None:
+        raise UnauthorizedException("Empty JWKS response from Keycloak.")
+    return _jwks_cache
 
 
 async def decode_token(token: str) -> dict:

@@ -90,13 +90,14 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 ### 1.8 Keycloak Auth
 - [x] `app/core/security.py`: Keycloak JWKS abrufen + cachen, JWT-Validierung (RS256), `decode_token()`
 - [x] `app/api/dependencies.py`: `get_current_user` (liest Bearer Token, validiert via `decode_token`, gibt `sub` zurueck), `get_db_session`
-- [ ] `app/api/middleware/auth.py` (optional, global): Middleware die `/health` ausschliesst — **noch nicht umgesetzt**
+- [x] `app/api/middleware/auth.py` (optional, global): Middleware die `/health` und `OPTIONS` ausschliesst, setzt `request.state.user_id`
 
 ### 1.9 Test-Infrastruktur
 - [x] `tests/conftest.py`: Env-Vars-Setup, `client` Fixture (AsyncClient), `authenticated_client` Fixture (JWT-Mock via `patch`)
 - [x] `tests/test_api/test_health.py`: `GET /health` → 200 + `{"status": "ok"}`
-- [ ] DB-Session Fixture mit Rollback nach jedem Test — **noch nicht umgesetzt**
-- [ ] Test: Geschuetzter Endpunkt ohne Token gibt 401 — **noch nicht umgesetzt** (kein geschuetzter Endpunkt in Phase 1)
+- [x] `db_session` Fixture: In-Memory SQLite (aiosqlite), Rollback nach jedem Test
+- [x] Test: Geschuetzter Endpunkt ohne Token gibt 401 (via AuthMiddleware)
+- [x] Test: Geschuetzter Endpunkt mit ungueltigem Token gibt 401
 
 ---
 
