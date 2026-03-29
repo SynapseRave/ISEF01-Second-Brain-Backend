@@ -24,12 +24,15 @@ async def user_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, N
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
-    with patch(
-        "app.api.middleware.auth.decode_token",
-        return_value=_MOCK_TOKEN_PAYLOAD,
-    ), patch(
-        "app.api.dependencies.decode_token",
-        return_value=_MOCK_TOKEN_PAYLOAD,
+    with (
+        patch(
+            "app.api.middleware.auth.decode_token",
+            return_value=_MOCK_TOKEN_PAYLOAD,
+        ),
+        patch(
+            "app.api.dependencies.decode_token",
+            return_value=_MOCK_TOKEN_PAYLOAD,
+        ),
     ):
         async with AsyncClient(
             transport=ASGITransport(app=app),
