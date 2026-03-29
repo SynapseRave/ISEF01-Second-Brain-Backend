@@ -1,5 +1,3 @@
-import asyncio
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,15 +28,14 @@ async def update_user(
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserResponse:
-    """Update app settings and/or Keycloak profile (email, password) in parallel."""
+    """Update Keycloak profile (email, password) first, then app settings in DB.
+
+    Keycloak is updated first — if it fails, the DB is never touched.
+    """
     user_id = token_payload["sub"]
 
-    keycloak_update = user_service.update_keycloak_user(
-        user_id, payload.email, payload.password
-    )
-    settings_update = user_service.update_user_settings(db, user_id, payload)
-
-    user_settings, _ = await asyncio.gather(settings_update, keycloak_update)
+    await user_service.update_keycloak_user(user_id, payload.email, payload.password)
+    user_settings = await user_service.update_user_settings(db, user_id, payload)
 
     profile = user_service.extract_profile_from_token(token_payload)
     if payload.email is not None:
