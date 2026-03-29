@@ -90,7 +90,10 @@ async def authenticated_client() -> AsyncGenerator[AsyncClient, None]:
     Injects a fixed user_id ("test-user-123") as the current user.
     """
     with patch(
-        "app.core.security.decode_token",
+        "app.api.middleware.auth.decode_token",
+        return_value={"sub": "test-user-123"},
+    ), patch(
+        "app.api.dependencies.decode_token",
         return_value={"sub": "test-user-123"},
     ):
         async with AsyncClient(
