@@ -21,6 +21,8 @@ async def get_jwks() -> dict:
         response = await client.get(jwks_url)
         response.raise_for_status()
         _jwks_cache = response.json()
+        if _jwks_cache is None:
+            raise UnauthorizedException("Failed to fetch JWKS from Keycloak.")
         return _jwks_cache
 
 
