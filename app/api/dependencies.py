@@ -10,11 +10,11 @@ from app.db.database import get_db
 
 _oauth2_scheme = OAuth2AuthorizationCodeBearer(
     authorizationUrl=(
-        f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
+        f"{settings.keycloak_browser_url}/realms/{settings.keycloak_realm}"
         "/protocol/openid-connect/auth"
     ),
     tokenUrl=(
-        f"{settings.keycloak_url}/realms/{settings.keycloak_realm}"
+        f"{settings.keycloak_browser_url}/realms/{settings.keycloak_realm}"
         "/protocol/openid-connect/token"
     ),
 )
