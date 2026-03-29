@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, get_db_session, get_token
+from app.api.dependencies import get_db_session, get_token_payload
 from app.schemas.user import UserResponse, UserSettingsData, UserSettingsUpdate
 from app.services import user as user_service
 
@@ -10,13 +10,12 @@ router = APIRouter(prefix="/api/user", tags=["user"])
 
 @router.get("/", response_model=UserResponse)
 async def get_user(
-    token: str = Depends(get_token),
-    current_user: str = Depends(get_current_user),
+    token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserResponse:
     """Return Keycloak profile + app settings for the authenticated user."""
-    profile = await user_service.fetch_keycloak_profile(token)
-    user_settings = await user_service.get_or_create_settings(db, current_user)
+    profile = user_service.extract_profile_from_token(token_payload)
+    user_settings = await user_service.get_or_create_settings(db, token_payload["sub"])
     return UserResponse(
         profile=profile,
         settings=UserSettingsData.model_validate(user_settings),
@@ -26,13 +25,14 @@ async def get_user(
 @router.put("/", response_model=UserResponse)
 async def update_user(
     payload: UserSettingsUpdate,
-    token: str = Depends(get_token),
-    current_user: str = Depends(get_current_user),
+    token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserResponse:
     """Update app-specific settings for the authenticated user."""
-    user_settings = await user_service.update_user_settings(db, current_user, payload)
-    profile = await user_service.fetch_keycloak_profile(token)
+    user_settings = await user_service.update_user_settings(
+        db, token_payload["sub"], payload
+    )
+    profile = user_service.extract_profile_from_token(token_payload)
     return UserResponse(
         profile=profile,
         settings=UserSettingsData.model_validate(user_settings),

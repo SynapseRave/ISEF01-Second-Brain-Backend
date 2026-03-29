@@ -20,16 +20,16 @@ _oauth2_scheme = OAuth2AuthorizationCodeBearer(
 )
 
 
-async def get_token(token: str = Depends(_oauth2_scheme)) -> str:
-    """Return the raw Bearer token from the Authorization header.
+async def get_token_payload(token: str = Depends(_oauth2_scheme)) -> dict:
+    """Decode the Keycloak JWT and return the full claims payload.
 
     Args:
         token: JWT string extracted by the OAuth2 scheme.
 
     Returns:
-        The raw JWT string.
+        Decoded JWT claims dict.
     """
-    return token
+    return await decode_token(token)
 
 
 async def get_current_user(token: str = Depends(_oauth2_scheme)) -> str:
