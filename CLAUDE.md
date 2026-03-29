@@ -159,6 +159,7 @@ Verbindungsstatus je Dienst (connected/disconnected/error).
 - This is a university project — keep solutions pragmatic, not over-engineered
 - MCP servers here are APPLICATION features, not Claude Code tooling
 - Always run tests after code changes
+- After every implementation run `ruff check . --fix && ruff format .` and fix all remaining issues before committing
 - Never commit directly to `main` or `develop` — always use feature/bugfix branches + PR
 - After implementation create a pull request for the feature branch
 - Always test new endpoints via test-endpoint skill
