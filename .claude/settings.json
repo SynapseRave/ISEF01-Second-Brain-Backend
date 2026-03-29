@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff check *)",
+      "Bash(ruff format *)",
+      "Bash(pytest *)",
+      "Bash(alembic *)",
+      "Bash(uvicorn *)",
+      "Bash(pip install *)",
+      "Bash(pip freeze)",
+      "Bash(git push*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/secrets/**)",
+      "Read(**/*.pem)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Bash(git push *)",
+      "Bash(git push)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ruff check --fix --quiet \"$CLAUDE_FILE_PATH\" 2>/dev/null; ruff format --quiet \"$CLAUDE_FILE_PATH\" 2>/dev/null; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(git\\s+push|--force|--hard)'; then echo 'Blocked: git push and destructive git operations require manual execution' >&2; exit 2; fi; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
