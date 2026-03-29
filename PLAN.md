@@ -77,6 +77,14 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 - [x] `.gitignore` fuer Python (venv, __pycache__, .env, *.pyc, .ruff_cache)
 - [x] `.env.example` mit allen benoetigten Variablen (ohne Werte)
 
+### 1.5 Docker Setup (lokale Entwicklung)
+- [x] `docker-compose.yml` mit:
+  - `postgres:17` (aktuelle PostgreSQL LTS) als App-Datenbank mit persistentem Volume und Health-Check
+  - `quay.io/keycloak/keycloak:26.0` im `start-dev` Modus (embedded H2, kein extra DB-Container)
+  - `backend` Service aus `Dockerfile` mit Hot-Reload via Volume-Mount
+  - `depends_on` (Postgres Health-Check) fuer Backend
+- [x] `.env.example` um Docker-relevante Variablen ergaenzt
+
 ---
 
 ## Phase 2: FastAPI App + Uvicorn Server
