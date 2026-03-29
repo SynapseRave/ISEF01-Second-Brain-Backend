@@ -15,6 +15,8 @@ os.environ.setdefault(
 os.environ.setdefault("KEYCLOAK_URL", "http://localhost:8080")
 os.environ.setdefault("KEYCLOAK_REALM", "test-realm")
 os.environ.setdefault("KEYCLOAK_CLIENT_ID", "test-client")
+os.environ.setdefault("KEYCLOAK_ADMIN_USER", "admin")
+os.environ.setdefault("KEYCLOAK_ADMIN_PASSWORD", "admin")
 
 from app.db.database import Base  # noqa: E402
 from app.main import app  # noqa: E402

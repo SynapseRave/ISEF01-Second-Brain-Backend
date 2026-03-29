@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     keycloak_public_url: str = ""  # Browser-facing URL for Swagger OAuth2 redirect
     keycloak_realm: str
     keycloak_client_id: str
-    keycloak_admin_user: str = "admin"
-    keycloak_admin_password: str = "admin"
+    keycloak_admin_user: str
+    keycloak_admin_password: str
     cors_origins: list[str] = ["http://localhost:3000"]
 
     @property
