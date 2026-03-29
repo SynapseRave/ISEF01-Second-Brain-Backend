@@ -5,7 +5,7 @@ from starlette.responses import JSONResponse
 from app.core.exceptions import UnauthorizedException
 from app.core.security import decode_token
 
-EXCLUDED_PATHS = {"/health"}
+EXCLUDED_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
