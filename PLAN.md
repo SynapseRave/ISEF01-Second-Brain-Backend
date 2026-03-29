@@ -7,7 +7,7 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 
 ---
 
-## Phase 1: Python-Projekt anlegen
+## Phase 1: Initial Setup (vollstaendig)
 
 ### 1.1 Projektstruktur erstellen
 - [x] Ordnerstruktur anlegen wie in CLAUDE.md definiert:
@@ -22,8 +22,7 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
   │   │   └── health.py
   │   ├── dependencies.py
   │   └── middleware/
-  │       ├── __init__.py
-  │       └── auth.py
+  │       └── __init__.py
   ├── core/
   │   ├── __init__.py
   │   ├── config.py
@@ -54,161 +53,56 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
   ```
 
 ### 1.2 Dependencies definieren
-- [x] `requirements.txt` erstellen mit:
-  ```
-  fastapi
-  uvicorn[standard]
-  sqlalchemy[asyncio]
-  asyncpg
-  alembic
-  pydantic-settings
-  python-jose[cryptography]
-  httpx
-  pytest
-  pytest-asyncio
-  httpx  # TestClient
-  ruff
-  ```
+- [x] `requirements.txt` mit gepinnten Versionen:
+  - `fastapi`, `uvicorn[standard]`, `sqlalchemy[asyncio]`, `asyncpg`, `alembic`
+  - `pydantic-settings`, `python-jose[cryptography]`, `httpx`
+  - `pytest`, `pytest-asyncio`
 
 ### 1.3 Ruff konfigurieren
-- [x] `pyproject.toml` mit ruff-Config (line-length=88, target Python 3.12)
+- [x] `pyproject.toml` mit ruff-Config (line-length=88, target Python 3.12, select E/F/I/UP)
+- [x] `pyproject.toml` pytest-Section: `asyncio_mode = "auto"`, `testpaths = ["tests"]`
 
 ### 1.4 Git-Konfiguration
 - [x] `.gitignore` fuer Python (venv, __pycache__, .env, *.pyc, .ruff_cache)
-- [x] `.env.example` mit allen benoetigten Variablen (ohne Werte)
+- [x] `.env.example` mit allen benoetigten Variablen inkl. Docker-Hinweisen
 
 ### 1.5 Docker Setup (lokale Entwicklung)
-- [x] `docker-compose.yml` mit:
-  - `postgres:17` (aktuelle PostgreSQL LTS) als App-Datenbank mit persistentem Volume und Health-Check
-  - `quay.io/keycloak/keycloak:26.0` im `start-dev` Modus (embedded H2, kein extra DB-Container)
-  - `backend` Service aus `Dockerfile` mit Hot-Reload via Volume-Mount
-  - `depends_on` (Postgres Health-Check) fuer Backend
-- [x] `.env.example` um Docker-relevante Variablen ergaenzt
+- [x] `docker-compose.yml`:
+  - `postgres:17` (PostgreSQL LTS) mit persistentem Volume und Health-Check
+  - `quay.io/keycloak/keycloak:26.0` im `start-dev` Modus (embedded H2)
+  - `backend` Service mit Hot-Reload via Volume-Mount, `depends_on` Postgres
+- [x] `Dockerfile`: Python 3.12 slim, `requirements.txt`, Uvicorn Entrypoint
+- [x] `.dockerignore`: venv, .git, __pycache__, .env, tests
 
----
+### 1.6 FastAPI App + Config
+- [x] `app/core/config.py`: Settings via pydantic-settings (`DATABASE_URL`, `KEYCLOAK_*`, `CORS_ORIGINS`)
+- [x] `app/main.py`: FastAPI-Instanz mit Lifespan, CORS Middleware, Exception Handler, Router
+- [x] `app/api/routes/health.py`: `GET /health` — gibt `{"status": "ok"}` zurueck, kein Auth
+- [x] `app/core/exceptions.py`: `SecondBrainException`, `NotFoundException`, `UnauthorizedException` + Handler
 
-## Phase 2: FastAPI App + Uvicorn Server
+### 1.7 PostgreSQL + Alembic
+- [x] `app/db/database.py`: `create_async_engine`, `async_sessionmaker`, `get_db` Dependency
+- [x] `alembic/env.py`: async Engine, `target_metadata` auf SQLAlchemy Base
+- [x] `alembic.ini`: `sqlalchemy.url` aus ENV
+- [x] `app/db/models/user_input.py`: `UserInput` Modell (id, user_id, prompt, response, deep_link, created_at)
+- [x] Migration `0001_create_user_input_table` erstellt
 
-### 2.1 Config (pydantic-settings)
-- [ ] `app/core/config.py` — Settings-Klasse mit:
-  - `DATABASE_URL`
-  - `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`
-  - `CORS_ORIGINS` (fuer Frontend)
-  - Laden aus `.env`
+### 1.8 Keycloak Auth
+- [x] `app/core/security.py`: Keycloak JWKS abrufen + cachen, JWT-Validierung (RS256), `decode_token()`
+- [x] `app/api/dependencies.py`: `get_current_user` (liest Bearer Token, validiert via `decode_token`, gibt `sub` zurueck), `get_db_session`
+- [ ] `app/api/middleware/auth.py` (optional, global): Middleware die `/health` ausschliesst — **noch nicht umgesetzt**
 
-### 2.2 FastAPI App Entry
-- [ ] `app/main.py`:
-  - FastAPI-Instanz mit Lifespan (startup/shutdown)
-  - CORS Middleware (Origins aus Config)
-  - Exception Handler registrieren
-  - Router einbinden
-
-### 2.3 Health Endpunkt
-- [ ] `app/api/routes/health.py`:
-  - `GET /health` — gibt `{"status": "ok"}` zurueck
-  - Kein Auth erforderlich
-
-### 2.4 Custom Exceptions
-- [ ] `app/core/exceptions.py`:
-  - `SecondBrainException` Basisklasse
-  - `NotFoundException`, `UnauthorizedException`
-  - FastAPI Exception Handler registrieren
-
-### 2.5 Ergebnis Phase 2
-- Server startet mit `uvicorn app.main:app --reload --port 8000`
-- `GET /health` antwortet mit 200
-
----
-
-## Phase 3: PostgreSQL einbinden
-
-### 3.1 Async Database Setup
-- [ ] `app/db/database.py`:
-  - `create_async_engine` mit `DATABASE_URL`
-  - `async_sessionmaker` fuer `AsyncSession`
-  - `get_db` Dependency (yields session)
-
-### 3.2 Alembic einrichten
-- [ ] `alembic init alembic` (async template)
-- [ ] `alembic/env.py` anpassen:
-  - `target_metadata` auf SQLAlchemy Base
-  - Async Engine verwenden
-- [ ] `alembic.ini` — `sqlalchemy.url` aus ENV
-
-### 3.3 Erstes DB-Modell (Platzhalter)
-- [ ] `app/db/models/user_input.py`:
-  - `UserInput` Modell (id, user_id, prompt, response, created_at)
-  - Dient als Grundlage fuer spaetere Input-Historie
-
-### 3.4 Erste Migration
-- [ ] `alembic revision --autogenerate -m "create user_input table"`
-- [ ] Migration laeuft erfolgreich mit `alembic upgrade head`
-
-### 3.5 DB Dependency
-- [ ] `app/api/dependencies.py`:
-  - `get_db` als FastAPI Dependency
-
----
-
-## Phase 4: Keycloak Auth Middleware
-
-### 4.1 Security Module
-- [ ] `app/core/security.py`:
-  - Keycloak Public Key abrufen (JWKS Endpoint)
-  - JWT Validierung (Signatur, Ablauf, Issuer)
-  - `decode_token()` Funktion
-
-### 4.2 Auth Dependency
-- [ ] `app/api/dependencies.py`:
-  - `get_current_user` Dependency:
-    - Liest `Authorization: Bearer <token>` Header
-    - Validiert JWT via `security.py`
-    - Gibt User-ID (`sub` claim) zurueck
-    - Wirft 401 bei ungueltigem/fehlendem Token
-
-### 4.3 Auth Middleware (optional, falls global)
-- [ ] `app/api/middleware/auth.py`:
-  - Middleware die `/health` ausschliesst
-  - Alle anderen Routes erfordern validen JWT
-
----
-
-## Phase 5: Test-Infrastruktur
-
-### 5.1 Test-Setup
-- [ ] `tests/conftest.py`:
-  - Test-DB (SQLite async oder separate Postgres Test-DB)
-  - `AsyncClient` (httpx) fuer API-Tests
-  - Auth-Mock: Fixture die JWT-Validierung ueberspringt
-  - DB-Session Fixture mit Rollback nach jedem Test
-
-### 5.2 Erster Test
-- [ ] `tests/test_api/test_health.py`:
-  - Test: `GET /health` gibt 200 + `{"status": "ok"}`
-  - Test: Geschuetzter Endpunkt ohne Token gibt 401
-
-### 5.3 Pytest Config
-- [ ] `pyproject.toml` pytest-Section:
-  - `asyncio_mode = "auto"`
-  - Test-Pfade
-
----
-
-## Phase 6: Dockerfile
-
-### 6.1 Dockerfile
-- [ ] `Dockerfile`:
-  - Python 3.12 slim Base Image
-  - `requirements.txt` installieren
-  - App kopieren
-  - Uvicorn als Entrypoint
-- [ ] `.dockerignore` (venv, .git, __pycache__, .env, tests)
+### 1.9 Test-Infrastruktur
+- [x] `tests/conftest.py`: Env-Vars-Setup, `client` Fixture (AsyncClient), `authenticated_client` Fixture (JWT-Mock via `patch`)
+- [x] `tests/test_api/test_health.py`: `GET /health` → 200 + `{"status": "ok"}`
+- [ ] DB-Session Fixture mit Rollback nach jedem Test — **noch nicht umgesetzt**
+- [ ] Test: Geschuetzter Endpunkt ohne Token gibt 401 — **noch nicht umgesetzt** (kein geschuetzter Endpunkt in Phase 1)
 
 ---
 
 ## Zusammenfassung: Was nach dem Setup steht
 
-| Komponente              | Status nach Setup                     |
+| Komponente              | Status                                |
 |-------------------------|---------------------------------------|
 | Projektstruktur         | Vollstaendig angelegt                 |
 | FastAPI + Uvicorn       | Server laeuft, Health-Endpunkt aktiv  |
@@ -216,7 +110,7 @@ Auth funktioniert und ein erster Endpunkt (Health) erreichbar ist.
 | Alembic                 | Konfiguriert, erste Migration erstellt|
 | Keycloak Auth           | JWT-Validierung, Auth Dependency      |
 | Tests                   | Infrastruktur + erster Health-Test    |
-| Dockerfile              | Build-faehig                          |
+| Docker                  | Dockerfile + docker-compose           |
 | Linting/Formatting      | ruff konfiguriert                     |
 
 ---
