@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Second Brain",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "secondbrain",
+      "Username": "secondbrain",
+      "PassFile": "/pgpassfile",
+      "SSLMode": "prefer"
+    }
+  }
+}
