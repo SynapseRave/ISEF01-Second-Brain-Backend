@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException, SecondBrainException
 from app.db.models.user_input import UserInput
+from app.services.llm import get_llm_service
 
 
 def _sse_event(data: dict) -> str:
@@ -125,24 +126,21 @@ async def process_input_stream(
         record = await save_input(db, user_id, prompt, conversation_id)
 
         yield _sse_event({"type": "status", "message": "Prompt wird analysiert..."})
-        yield _sse_event(
-            {"type": "status", "message": "Identifiziere benötigte Services..."}
-        )
 
-        # TODO: LLM/MCP integration
-        # intent = await llm_service.determine_intent(prompt, user_settings)
-        # yield _sse_event({"type": "status", "message": f"Nutze {intent.tool}..."})
-        # result = await mcp_client.call_tool(intent.tool, intent.params)
-        # response_text = result.response
-        # tool_used = intent.tool
-        # model_used = intent.model
-        # deep_link = result.deep_link
+        all_msgs = await get_conversation(db, user_id, record.conversation_id)
+        history = [m for m in all_msgs if m.id != record.id]
 
-        response_text = (
-            "Verarbeitung noch nicht implementiert — LLM/MCP Integration folgt."
-        )
+        yield _sse_event({"type": "status", "message": "LLM wird angefragt..."})
+
+        llm = get_llm_service()
+        chunks: list[str] = []
+        async for token in llm.stream_response(history, prompt):
+            chunks.append(token)
+            yield _sse_event({"type": "chunk", "text": token})
+
+        response_text = "".join(chunks)
         tool_used: str | None = None
-        model_used: str | None = None
+        model_used: str | None = llm.model_name
         deep_link: str | None = None
 
         yield _sse_event({"type": "status", "message": "Verarbeitung abgeschlossen."})

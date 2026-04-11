@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     keycloak_admin_user: str
     keycloak_admin_password: str
     cors_origins: list[str] = ["http://localhost:3000"]
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    llm_provider: str = "openai"  # "openai" | "anthropic"
 
     @property
     def keycloak_browser_url(self) -> str:
