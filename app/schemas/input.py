@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -7,6 +8,7 @@ class InputRequest(BaseModel):
     """Request body for POST /api/input."""
 
     prompt: str
+    conversation_id: uuid.UUID | None = None
 
     @field_validator("prompt")
     @classmethod
@@ -24,9 +26,29 @@ class InputResponse(BaseModel):
 
     id: int
     user_id: str
+    conversation_id: uuid.UUID
     prompt: str
     response: str | None
     tool: str | None
     model: str | None
     deep_link: str | None
     created_at: datetime
+    updated_at: datetime
+
+
+class PaginatedInputResponse(BaseModel):
+    """Paginated list of user inputs."""
+
+    items: list[InputResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+class ConversationResponse(BaseModel):
+    """All messages belonging to a single conversation thread."""
+
+    conversation_id: uuid.UUID
+    messages: list[InputResponse]
+    total: int
