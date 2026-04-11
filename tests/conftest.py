@@ -18,6 +18,10 @@ os.environ.setdefault("KEYCLOAK_CLIENT_ID", "test-client")
 os.environ.setdefault("KEYCLOAK_ADMIN_USER", "admin")
 os.environ.setdefault("KEYCLOAK_ADMIN_PASSWORD", "admin")
 os.environ.setdefault("LLM_PROVIDER", "openai")
+# Valid 32-byte Fernet key for tests (do NOT use in production)
+os.environ.setdefault(
+    "VAULT_MASTER_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+)
 
 from app.db.database import Base  # noqa: E402
 from app.main import app  # noqa: E402

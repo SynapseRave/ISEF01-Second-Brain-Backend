@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     llm_provider: str = "openai"  # "openai" | "anthropic"
+    vault_backend: str = "local"  # "local" | "hashicorp"
+    # Required when vault_backend="local"; 32-byte URL-safe base64 Fernet key
+    vault_master_key: str | None = None
+    vault_url: str | None = None  # HashiCorp Vault server URL
+    vault_token: str | None = None  # HashiCorp Vault token
 
     @property
     def keycloak_browser_url(self) -> str:
