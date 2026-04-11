@@ -80,8 +80,37 @@ def upgrade() -> None:
     )
     op.create_index("ix_user_settings_user_id", "user_settings", ["user_id"])
 
+    op.create_table(
+        "credentials",
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            nullable=False,
+        ),
+        sa.Column("user_id", sa.String(length=255), nullable=False),
+        sa.Column("service", sa.String(length=50), nullable=False),
+        sa.Column("encrypted_value", sa.LargeBinary(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "service", name="uq_credentials_user_service"),
+    )
+    op.create_index("ix_credentials_user_id", "credentials", ["user_id"])
+
 
 def downgrade() -> None:
+    op.drop_index("ix_credentials_user_id", table_name="credentials")
+    op.drop_table("credentials")
     op.drop_index("ix_user_settings_user_id", table_name="user_settings")
     op.drop_table("user_settings")
     op.drop_index("ix_user_inputs_conversation_id", table_name="user_inputs")
