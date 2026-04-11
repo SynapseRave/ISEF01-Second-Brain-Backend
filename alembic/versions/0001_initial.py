@@ -24,6 +24,11 @@ def upgrade() -> None:
         "user_inputs",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.String(length=255), nullable=False),
+        sa.Column(
+            "conversation_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=False,
+        ),
         sa.Column("prompt", sa.Text(), nullable=False),
         sa.Column("response", sa.Text(), nullable=True),
         sa.Column("tool", sa.String(length=100), nullable=True),
@@ -35,9 +40,18 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_user_inputs_user_id", "user_inputs", ["user_id"])
+    op.create_index(
+        "ix_user_inputs_conversation_id", "user_inputs", ["conversation_id"]
+    )
 
     op.create_table(
         "user_settings",
@@ -70,5 +84,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_user_settings_user_id", table_name="user_settings")
     op.drop_table("user_settings")
+    op.drop_index("ix_user_inputs_conversation_id", table_name="user_inputs")
     op.drop_index("ix_user_inputs_user_id", table_name="user_inputs")
     op.drop_table("user_inputs")
