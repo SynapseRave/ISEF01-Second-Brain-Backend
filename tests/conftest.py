@@ -17,6 +17,7 @@ os.environ.setdefault("KEYCLOAK_REALM", "test-realm")
 os.environ.setdefault("KEYCLOAK_CLIENT_ID", "test-client")
 os.environ.setdefault("KEYCLOAK_ADMIN_USER", "admin")
 os.environ.setdefault("KEYCLOAK_ADMIN_PASSWORD", "admin")
+os.environ.setdefault("LLM_PROVIDER", "openai")
 
 from app.db.database import Base  # noqa: E402
 from app.main import app  # noqa: E402

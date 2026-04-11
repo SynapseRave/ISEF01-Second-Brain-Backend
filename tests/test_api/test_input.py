@@ -1,7 +1,7 @@
 import json
 import uuid
 from collections.abc import AsyncGenerator
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -21,6 +21,22 @@ _MOCK_TOKEN_PAYLOAD = {
 }
 
 _OTHER_USER_ID = "other-user-456"
+
+
+@pytest.fixture(autouse=True)
+def mock_llm() -> None:
+    """Replace the LLM service with a stub that yields two fixed tokens."""
+
+    async def _fake_stream(history, prompt):
+        yield "Antwort "
+        yield "Text"
+
+    fake_svc = MagicMock()
+    fake_svc.stream_response = _fake_stream
+    fake_svc.model_name = "test-model"
+
+    with patch("app.services.input.get_llm_service", return_value=fake_svc):
+        yield
 
 
 @pytest.fixture
@@ -121,6 +137,19 @@ async def test_post_input_saves_record_to_db(
     records = result.scalars().all()
     assert len(records) == 1
     assert records[0].prompt == prompt
+    assert records[0].response == "Antwort Text"
+    assert records[0].model == "test-model"
+
+
+@pytest.mark.asyncio
+async def test_post_input_stream_contains_chunk_events(
+    input_client: AsyncClient,
+) -> None:
+    response = await input_client.post("/api/input/", json={"prompt": "Test"})
+    events = _parse_sse_events(response.text)
+    chunks = [e for e in events if e["type"] == "chunk"]
+    assert len(chunks) >= 1
+    assert all("text" in e for e in chunks)
 
 
 @pytest.mark.asyncio
