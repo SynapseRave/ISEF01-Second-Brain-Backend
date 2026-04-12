@@ -22,6 +22,25 @@ class Settings(BaseSettings):
     vault_master_key: str | None = None
     vault_url: str | None = None  # HashiCorp Vault server URL
     vault_token: str | None = None  # HashiCorp Vault token
+    # MCP server base URLs (Docker internal hostnames in production)
+    mcp_notion_url: str = "http://localhost:3001"
+    mcp_todoist_url: str = "http://localhost:3002"
+    mcp_google_calendar_url: str = "http://localhost:3003"
+    mcp_obsidian_url: str = "http://localhost:3004"
+    mcp_onenote_url: str = "http://localhost:3005"
+    mcp_timeout_seconds: int = 30
+    mcp_enabled: bool = True
+
+    @property
+    def mcp_server_urls(self) -> dict[str, str]:
+        """Map ApplicationService values to MCP server base URLs."""
+        return {
+            "notion": self.mcp_notion_url,
+            "todoist": self.mcp_todoist_url,
+            "google_calendar": self.mcp_google_calendar_url,
+            "obsidian": self.mcp_obsidian_url,
+            "onenote": self.mcp_onenote_url,
+        }
 
     @property
     def keycloak_browser_url(self) -> str:

@@ -1,4 +1,6 @@
+import json
 import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -6,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
 from app.db.models.user_input import UserInput
+from app.schemas.credential import ApplicationService
 from app.services.input import (
     delete_input,
     get_conversation,
     get_input_by_id,
     get_inputs,
+    process_input_stream,
     save_input,
 )
 
@@ -218,3 +222,274 @@ async def test_get_conversation_does_not_return_other_users_messages(
 
     messages = await get_conversation(db_session, _USER_A, cid)
     assert messages == []
+
+
+# ---------------------------------------------------------------------------
+# process_input_stream — MCP integration
+# ---------------------------------------------------------------------------
+
+
+async def _collect_events(gen) -> list[dict]:
+    """Drain an SSE generator and parse each JSON event."""
+    events = []
+    async for raw in gen:
+        line = raw.strip()
+        if line.startswith("data:"):
+            events.append(json.loads(line[len("data:") :].strip()))
+    return events
+
+
+@pytest.mark.asyncio
+async def test_process_input_stream_without_vault_skips_mcp(
+    db_session: AsyncSession,
+) -> None:
+    """When vault=None, the stream should work as before (no MCP calls)."""
+
+    async def _fake_stream(*args, **kwargs):
+        yield "Antwort ohne Tools"
+
+    with patch("app.services.input.get_llm_service") as mock_llm_factory:
+        mock_llm = MagicMock()
+        mock_llm.stream_response = _fake_stream
+        mock_llm.model_name = "test-model"
+        mock_llm_factory.return_value = mock_llm
+
+        events = await _collect_events(
+            process_input_stream(db_session, _USER_A, "Hallo", vault=None)
+        )
+
+    types = [e["type"] for e in events]
+    assert "chunk" in types
+    assert "tool_call" not in types
+    assert "done" in types
+
+
+@pytest.mark.asyncio
+async def test_process_input_stream_with_tools_emits_tool_call_event(
+    db_session: AsyncSession,
+) -> None:
+    """When vault is set and LLM returns a tool call, a tool_call event is emitted."""
+    from app.services.llm.base import LLMResponse, ToolCall
+    from app.services.mcp.client import ToolCallResult
+
+    tool_call = ToolCall(
+        id="tc_1", name="notion__create_page", arguments={"title": "T"}
+    )
+    mcp_result = ToolCallResult(
+        tool_name="create_page",
+        service=ApplicationService.notion,
+        content=[{"type": "text", "text": "Erstellt!\ndeep_link: https://notion.so/x"}],
+        is_error=False,
+        deep_link="https://notion.so/x",
+    )
+
+    async def _fake_stream(*args, **kwargs):
+        yield "Super, die Seite wurde erstellt."
+
+    mock_vault = AsyncMock()
+    mock_vault.retrieve = AsyncMock(return_value=json.dumps({"api_token": "tok"}))
+
+    with (
+        patch("app.services.input.get_llm_service") as mock_llm_factory,
+        patch("app.services.input.get_mcp_client") as mock_mcp_factory,
+        patch("app.services.input.settings") as mock_cfg,
+    ):
+        mock_cfg.mcp_enabled = True
+
+        mock_llm = MagicMock()
+        mock_llm.stream_response = _fake_stream
+        mock_llm.model_name = "test-model"
+        mock_llm._build_messages = MagicMock(
+            return_value=[{"role": "user", "content": "T"}]
+        )
+        mock_llm.complete_with_tools = AsyncMock(
+            side_effect=[
+                LLMResponse(text=None, tool_calls=[tool_call]),  # first: tool call
+                LLMResponse(text="Fertig", tool_calls=[]),  # second: text
+            ]
+        )
+        mock_llm.build_assistant_tool_use_message = MagicMock(
+            return_value={"role": "assistant", "content": []}
+        )
+        mock_llm.build_tool_result_message = MagicMock(
+            return_value={"role": "user", "content": []}
+        )
+        mock_llm_factory.return_value = mock_llm
+
+        mock_mcp = AsyncMock()
+        mock_mcp.list_tools = AsyncMock(
+            return_value=[
+                MagicMock(
+                    name="create_page",
+                    description="Erstelle eine Seite",
+                    inputSchema=MagicMock(model_dump=MagicMock(return_value={})),
+                )
+            ]
+        )
+        mock_mcp.call_tool = AsyncMock(return_value=mcp_result)
+        mock_mcp_factory.return_value = mock_mcp
+
+        events = await _collect_events(
+            process_input_stream(db_session, _USER_A, "Neue Notiz", vault=mock_vault)
+        )
+
+    types = [e["type"] for e in events]
+    assert "tool_call" in types
+
+    tool_call_event = next(e for e in events if e["type"] == "tool_call")
+    assert tool_call_event["service"] == "notion"
+    assert tool_call_event["tool"] == "create_page"
+
+    assert "done" in types
+
+
+@pytest.mark.asyncio
+async def test_process_input_stream_tool_result_updates_record_fields(
+    db_session: AsyncSession,
+) -> None:
+    """After a successful tool call, tool and deep_link fields are persisted."""
+    from app.services.llm.base import LLMResponse, ToolCall
+    from app.services.mcp.client import ToolCallResult
+
+    tool_call = ToolCall(
+        id="tc_2", name="todoist__create_task", arguments={"content": "X"}
+    )
+    mcp_result = ToolCallResult(
+        tool_name="create_task",
+        service=ApplicationService.todoist,
+        content=[
+            {
+                "type": "text",
+                "text": "Aufgabe erstellt\ndeep_link: https://todoist.com/app/task/1",
+            }
+        ],
+        is_error=False,
+        deep_link="https://todoist.com/app/task/1",
+    )
+
+    async def _fake_stream(*args, **kwargs):
+        yield "Erledigt."
+
+    mock_vault = AsyncMock()
+    mock_vault.retrieve = AsyncMock(return_value=json.dumps({"api_token": "tok"}))
+
+    with (
+        patch("app.services.input.get_llm_service") as mock_llm_factory,
+        patch("app.services.input.get_mcp_client") as mock_mcp_factory,
+        patch("app.services.input.settings") as mock_cfg,
+    ):
+        mock_cfg.mcp_enabled = True
+
+        mock_llm = MagicMock()
+        mock_llm.stream_response = _fake_stream
+        mock_llm.model_name = "test-model"
+        mock_llm._build_messages = MagicMock(
+            return_value=[{"role": "user", "content": "X"}]
+        )
+        mock_llm.complete_with_tools = AsyncMock(
+            side_effect=[
+                LLMResponse(text=None, tool_calls=[tool_call]),
+                LLMResponse(text="Erledigt.", tool_calls=[]),
+            ]
+        )
+        mock_llm.build_assistant_tool_use_message = MagicMock(
+            return_value={"role": "assistant", "content": []}
+        )
+        mock_llm.build_tool_result_message = MagicMock(
+            return_value={"role": "user", "content": []}
+        )
+        mock_llm_factory.return_value = mock_llm
+
+        mock_mcp = AsyncMock()
+        mock_mcp.list_tools = AsyncMock(
+            return_value=[
+                MagicMock(
+                    name="create_task",
+                    description="Erstelle eine Aufgabe",
+                    inputSchema=MagicMock(model_dump=MagicMock(return_value={})),
+                )
+            ]
+        )
+        mock_mcp.call_tool = AsyncMock(return_value=mcp_result)
+        mock_mcp_factory.return_value = mock_mcp
+
+        events = await _collect_events(
+            process_input_stream(
+                db_session, _USER_A, "Aufgabe hinzufügen", vault=mock_vault
+            )
+        )
+
+    done_event = next(e for e in events if e["type"] == "done")
+    input_id = done_event["input_id"]
+
+    result = await db_session.execute(select(UserInput).where(UserInput.id == input_id))
+    record = result.scalar_one()
+    assert record.tool == "todoist/create_task"
+    assert record.deep_link == "https://todoist.com/app/task/1"
+
+
+@pytest.mark.asyncio
+async def test_process_input_stream_max_iterations_guard(
+    db_session: AsyncSession,
+) -> None:
+    """Loop must stop after MAX_TOOL_ITERATIONS even if LLM keeps requesting tools."""
+    from app.services.llm.base import LLMResponse, ToolCall
+    from app.services.mcp.client import ToolCallResult
+
+    tool_call = ToolCall(id="tc_loop", name="notion__create_page", arguments={})
+    mcp_result = ToolCallResult(
+        tool_name="create_page",
+        service=ApplicationService.notion,
+        content=[],
+        is_error=False,
+    )
+
+    async def _fake_stream(*args, **kwargs):
+        yield "Fallback."
+
+    mock_vault = AsyncMock()
+    mock_vault.retrieve = AsyncMock(return_value=json.dumps({"api_token": "tok"}))
+
+    with (
+        patch("app.services.input.get_llm_service") as mock_llm_factory,
+        patch("app.services.input.get_mcp_client") as mock_mcp_factory,
+        patch("app.services.input.settings") as mock_cfg,
+        patch("app.services.input._MAX_TOOL_ITERATIONS", 2),
+    ):
+        mock_cfg.mcp_enabled = True
+
+        mock_llm = MagicMock()
+        mock_llm.stream_response = _fake_stream
+        mock_llm.model_name = "test-model"
+        mock_llm._build_messages = MagicMock(
+            return_value=[{"role": "user", "content": "T"}]
+        )
+        # Always return a tool call — should be stopped by MAX_TOOL_ITERATIONS
+        mock_llm.complete_with_tools = AsyncMock(
+            return_value=LLMResponse(text=None, tool_calls=[tool_call])
+        )
+        mock_llm.build_assistant_tool_use_message = MagicMock(return_value={})
+        mock_llm.build_tool_result_message = MagicMock(return_value={})
+        mock_llm_factory.return_value = mock_llm
+
+        mock_mcp = AsyncMock()
+        mock_mcp.list_tools = AsyncMock(
+            return_value=[
+                MagicMock(
+                    name="create_page",
+                    description="Erstelle Seite",
+                    inputSchema=MagicMock(model_dump=MagicMock(return_value={})),
+                )
+            ]
+        )
+        mock_mcp.call_tool = AsyncMock(return_value=mcp_result)
+        mock_mcp_factory.return_value = mock_mcp
+
+        events = await _collect_events(
+            process_input_stream(db_session, _USER_A, "Loop-Test", vault=mock_vault)
+        )
+
+    # Must complete without infinite loop and reach "done"
+    assert any(e["type"] == "done" for e in events)
+    # call_tool was called exactly MAX_TOOL_ITERATIONS (2) times
+    assert mock_mcp.call_tool.call_count == 2

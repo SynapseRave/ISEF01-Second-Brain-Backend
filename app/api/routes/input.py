@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, get_db_session
+from app.api.dependencies import get_current_user, get_db_session, get_vault
 from app.schemas.input import (
     ConversationResponse,
     InputRequest,
@@ -19,6 +19,7 @@ from app.services.input import (
     get_inputs,
     process_input_stream,
 )
+from app.services.vault.base import VaultService
 
 router = APIRouter(prefix="/api/input", tags=["input"])
 
@@ -78,16 +79,19 @@ async def post_input(
     body: InputRequest,
     user_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
+    vault: VaultService = Depends(get_vault),
 ) -> StreamingResponse:
     """Process a natural-language user command and stream progress as SSE.
 
     Each streamed event is a JSON object on a ``data:`` line with a ``type``
-    field (``status``, ``result``, ``done``, or ``error``).
+    field (``status``, ``chunk``, ``tool_call``, ``result``, ``done``, or
+    ``error``). When the user has external services configured, the LLM may
+    call MCP tools and a ``tool_call`` event is emitted for each invocation.
     The prompt is persisted to the database for history retrieval.
     Provide ``conversation_id`` to append to an existing thread.
     """
     return StreamingResponse(
-        process_input_stream(db, user_id, body.prompt, body.conversation_id),
+        process_input_stream(db, user_id, body.prompt, body.conversation_id, vault),
         media_type="text/event-stream",
         headers={"X-Accel-Buffering": "no"},
     )

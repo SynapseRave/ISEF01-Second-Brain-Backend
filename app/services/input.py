@@ -5,9 +5,19 @@ from collections.abc import AsyncGenerator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import NotFoundException, SecondBrainException
 from app.db.models.user_input import UserInput
+from app.schemas.credential import ApplicationService
 from app.services.llm import get_llm_service
+from app.services.llm.base import MessageDict, ToolCall
+from app.services.mcp import get_mcp_client
+from app.services.mcp.client import ToolCallResult
+from app.services.mcp.credentials import get_user_credentials_for_services
+from app.services.vault.base import VaultService
+
+_ALL_SERVICES = list(ApplicationService)
+_MAX_TOOL_ITERATIONS = 3
 
 
 def _sse_event(data: dict) -> str:
@@ -116,11 +126,18 @@ async def process_input_stream(
     user_id: str,
     prompt: str,
     conversation_id: uuid.UUID | None = None,
+    vault: VaultService | None = None,
 ) -> AsyncGenerator[str, None]:
     """Persist the prompt, stream progress events, and update the record on completion.
 
+    When a vault is provided and MCP is enabled, available tool definitions are
+    fetched from configured MCP servers and offered to the LLM. If the LLM
+    requests a tool call it is executed and the result is fed back for up to
+    ``_MAX_TOOL_ITERATIONS`` rounds before the final text is streamed.
+
     Yields SSE-formatted strings. Each event carries a JSON payload with a
-    ``type`` field: ``status``, ``result``, ``done``, or ``error``.
+    ``type`` field: ``status``, ``chunk``, ``tool_call``, ``result``, ``done``,
+    or ``error``.
     """
     try:
         record = await save_input(db, user_id, prompt, conversation_id)
@@ -130,18 +147,96 @@ async def process_input_stream(
         all_msgs = await get_conversation(db, user_id, record.conversation_id)
         history = [m for m in all_msgs if m.id != record.id]
 
-        yield _sse_event({"type": "status", "message": "LLM wird angefragt..."})
-
         llm = get_llm_service()
+
+        # --- Phase 1: collect tool definitions from configured MCP servers ---
+        tool_definitions: list[dict] = []
+        service_credentials: dict[ApplicationService, dict] = {}
+
+        if vault is not None and settings.mcp_enabled:
+            yield _sse_event(
+                {"type": "status", "message": "Verbundene Dienste werden geprüft..."}
+            )
+            mcp = get_mcp_client()
+            service_credentials = await get_user_credentials_for_services(
+                user_id, _ALL_SERVICES, vault
+            )
+            for service, credentials in service_credentials.items():
+                try:
+                    tools = await mcp.list_tools(service, credentials)
+                    for tool in tools:
+                        tool_definitions.append(
+                            {
+                                "name": f"{service.value}__{tool.name}",
+                                "description": tool.description or "",
+                                "input_schema": (
+                                    tool.inputSchema.model_dump()
+                                    if tool.inputSchema
+                                    else {}
+                                ),
+                            }
+                        )
+                except SecondBrainException:
+                    pass  # MCP server unreachable — continue without it
+
+        # --- Phase 2: agentic tool-use loop ---
+        messages: list[MessageDict] = llm._build_messages(history, prompt)
+        tool_used: str | None = None
+        deep_link: str | None = None
+        pre_streamed_text: str | None = None
+
+        if tool_definitions:
+            yield _sse_event({"type": "status", "message": "LLM wird angefragt..."})
+
+            for _ in range(_MAX_TOOL_ITERATIONS):
+                llm_response = await llm.complete_with_tools(messages, tool_definitions)
+
+                if not llm_response.tool_calls:
+                    # LLM decided no tool is needed
+                    pre_streamed_text = llm_response.text
+                    break
+
+                # Execute each tool call and append the exchange to messages
+                for tool_call in llm_response.tool_calls:
+                    service_name, bare_tool_name = tool_call.name.split("__", 1)
+                    service = ApplicationService(service_name)
+                    credentials = service_credentials.get(service, {})
+
+                    yield _sse_event(
+                        {
+                            "type": "tool_call",
+                            "tool": bare_tool_name,
+                            "service": service_name,
+                        }
+                    )
+
+                    result = await get_mcp_client().call_tool(
+                        service, bare_tool_name, tool_call.arguments, credentials
+                    )
+
+                    tool_used = f"{service_name}/{bare_tool_name}"
+                    if result.deep_link:
+                        deep_link = result.deep_link
+
+                    messages = _append_tool_exchange(llm, messages, tool_call, result)
+            # If all iterations consumed, fall through to final stream_response
+
+        # --- Phase 3: stream the final text response ---
+        yield _sse_event({"type": "status", "message": "Antwort wird generiert..."})
+
         chunks: list[str] = []
-        async for token in llm.stream_response(history, prompt):
-            chunks.append(token)
-            yield _sse_event({"type": "chunk", "text": token})
+        if pre_streamed_text is not None:
+            chunks = [pre_streamed_text]
+            yield _sse_event({"type": "chunk", "text": pre_streamed_text})
+        else:
+            # Pass enriched messages when tools were used, otherwise plain history
+            override = messages if tool_definitions else None
+            async for token in llm.stream_response(history, prompt, messages=override):
+                chunks.append(token)
+                yield _sse_event({"type": "chunk", "text": token})
 
         response_text = "".join(chunks)
-        tool_used: str | None = None
         model_used: str | None = llm.model_name
-        deep_link: str | None = None
 
         yield _sse_event({"type": "status", "message": "Verarbeitung abgeschlossen."})
         yield _sse_event(
@@ -177,3 +272,30 @@ async def process_input_stream(
         yield _sse_event(
             {"type": "error", "message": "Ein unerwarteter Fehler ist aufgetreten."}
         )
+
+
+def _append_tool_exchange(
+    llm: object,
+    messages: list[MessageDict],
+    tool_call: ToolCall,
+    result: ToolCallResult,
+) -> list[MessageDict]:
+    """Append the assistant tool-use message and tool result to the message list.
+
+    Args:
+        llm: The LLMService instance (provides provider-specific message builders).
+        messages: Current message list.
+        tool_call: The tool call the assistant made.
+        result: The MCP tool execution result.
+
+    Returns:
+        New message list with the exchange appended.
+    """
+    from app.services.llm.base import LLMService
+
+    assert isinstance(llm, LLMService)
+    assistant_msg = llm.build_assistant_tool_use_message(tool_call)
+    result_msg = llm.build_tool_result_message(
+        tool_call, result.content, result.is_error
+    )
+    return [*messages, assistant_msg, result_msg]
