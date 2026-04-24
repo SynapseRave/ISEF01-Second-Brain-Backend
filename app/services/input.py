@@ -269,7 +269,12 @@ async def process_input_stream(
     except SecondBrainException as exc:
         yield _sse_event({"type": "error", "message": exc.message})
     except Exception as exc:
-        yield _sse_event({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        import traceback
+
+        tb = traceback.format_exc()
+        yield _sse_event(
+            {"type": "error", "message": f"{type(exc).__name__}: {exc} | {tb}"}
+        )
 
 
 def _append_tool_exchange(
