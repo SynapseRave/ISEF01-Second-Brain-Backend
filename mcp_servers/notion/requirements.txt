@@ -1,0 +1,4 @@
+mcp>=1.0.0
+notion-client>=2.2.1
+uvicorn[standard]>=0.34.0
+starlette>=0.41.0

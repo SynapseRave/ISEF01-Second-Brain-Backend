@@ -63,11 +63,15 @@ async def process_input(...) -> StreamingResponse:
 
 SSE event format:
 ```json
-{"type": "status", "message": "..."}
-{"type": "result", "data": {"response": "...", "deep_link": "..."}}
-{"type": "done",   "input_id": 42}
-{"type": "error",  "message": "..."}
+{"type": "status",    "message": "..."}
+{"type": "chunk",     "text": "..."}
+{"type": "tool_call", "tool": "...", "service": "..."}
+{"type": "result",    "data": {"response": "...", "deep_link": "..."}}
+{"type": "done",      "input_id": "<uuid-string>", "conversation_id": "<uuid-string>"}
+{"type": "error",     "message": "..."}
 ```
+
+Note: `input_id` and `conversation_id` are **UUID strings**, not integers.
 
 ## Testing Requirements
 

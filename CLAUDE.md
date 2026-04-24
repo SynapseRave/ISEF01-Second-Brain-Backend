@@ -64,3 +64,52 @@ Detailed conventions are in `.claude/rules/`:
 - Always test new endpoints via test-endpoint skill
 - Migrations: use `0001_initial.py` and reset DB after changes:
   `docker compose down && docker volume rm isef01_second_brain_backend_postgres_data && docker compose up -d`
+
+## Current Implementation Status (2026-04-24)
+
+**Done:**
+- Keycloak OIDC middleware (JWT validation on all routes except `/health`)
+- `POST /api/input/` — SSE streaming with agentic tool-use loop (max 3 iterations)
+- `CRUD /api/credential/applications/` — encrypted via Fernet/Vault
+- 5 MCP servers: notion (3001), todoist (3002), google_calendar (3003), obsidian (3004), onenote (3005)
+- Credentials forwarded as `X-Service-Credentials` header to MCP servers
+- Keycloak realm export: `frontend` public client with PKCE S256 and correct redirect URIs
+- `keycloak/setup-users.sh`: sets test-user passwords via Admin API (Keycloak 26 workaround)
+
+**Required .env variables:**
+```
+DATABASE_URL=postgresql+asyncpg://...
+KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_REALM=second-brain
+KEYCLOAK_CLIENT_ID=frontend
+KEYCLOAK_ADMIN_USER=admin
+KEYCLOAK_ADMIN_PASSWORD=admin
+VAULT_MASTER_KEY=<32-byte URL-safe base64 Fernet key>
+LLM_PROVIDER=openai          # or: anthropic
+OPENAI_API_KEY=sk-...        # if LLM_PROVIDER=openai
+ANTHROPIC_API_KEY=sk-ant-... # if LLM_PROVIDER=anthropic
+CORS_ORIGINS=["http://localhost:3000"]
+```
+
+## SSE Event Protocol
+
+`POST /api/input/` emits these events in order:
+
+| Type | Payload | Notes |
+|---|---|---|
+| `status` | `{"message": "..."}` | Intermediate status |
+| `tool_call` | `{"tool": "...", "service": "..."}` | Tool being executed |
+| `chunk` | `{"text": "..."}` | Single LLM token (many) |
+| `result` | `{"data": {"response": "...", "deep_link": ...}}` | Full assembled response |
+| `done` | `{"input_id": "<uuid>", "conversation_id": "<uuid>"}` | **input_id is a UUID string, not int** |
+| `error` | `{"message": "..."}` | Error message |
+
+## Credential Schemas
+
+| Service | Fields |
+|---|---|
+| Notion | `api_token` |
+| Todoist | `api_token` |
+| Obsidian | `api_key`, `base_url` (default: `http://localhost:27123`) |
+| Google Calendar | `access_token`, `refresh_token`, `expires_at` |
+| OneNote | `access_token`, `refresh_token`, `expires_at` |

@@ -1,6 +1,7 @@
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+exclude = ["mcp_servers"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

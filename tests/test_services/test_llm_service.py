@@ -4,6 +4,7 @@ import pytest
 
 from app.core.exceptions import SecondBrainException
 from app.services.llm import get_llm_service
+from app.services.llm.base import LLMResponse, ToolCall
 from app.services.llm.chatgpt import ChatGPTService
 from app.services.llm.claude import ClaudeService
 
@@ -190,3 +191,175 @@ def test_get_llm_service_raises_for_unknown_provider() -> None:
         mock_cfg.llm_provider = "gemini"
         with pytest.raises(SecondBrainException):
             get_llm_service()
+
+
+# ---------------------------------------------------------------------------
+# ClaudeService — complete_with_tools
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_claude_complete_with_tools_returns_tool_calls() -> None:
+    tool_use_block = MagicMock()
+    tool_use_block.type = "tool_use"
+    tool_use_block.id = "tu_abc"
+    tool_use_block.name = "notion__create_page"
+    tool_use_block.input = {"title": "Test", "content": "Body", "parent_page_id": "pid"}
+
+    fake_response = MagicMock()
+    fake_response.content = [tool_use_block]
+    fake_response.stop_reason = "tool_use"
+
+    with (
+        patch("app.services.llm.claude.settings") as mock_cfg,
+        patch("app.services.llm.claude.anthropic_sdk") as mock_sdk,
+    ):
+        mock_cfg.anthropic_api_key = "sk-ant-test"
+        mock_sdk.AsyncAnthropic.return_value.messages.create = AsyncMock(
+            return_value=fake_response
+        )
+
+        svc = ClaudeService()
+        svc._client = None
+        result = await svc.complete_with_tools(
+            [{"role": "user", "content": "Erstelle eine Notiz"}],
+            [{"name": "notion__create_page", "description": "...", "input_schema": {}}],
+        )
+
+    assert isinstance(result, LLMResponse)
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].name == "notion__create_page"
+    assert result.tool_calls[0].id == "tu_abc"
+    assert result.text is None
+
+
+@pytest.mark.asyncio
+async def test_claude_complete_with_tools_returns_text_when_no_tool() -> None:
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "Hier ist deine Antwort."
+
+    fake_response = MagicMock()
+    fake_response.content = [text_block]
+    fake_response.stop_reason = "end_turn"
+
+    with (
+        patch("app.services.llm.claude.settings") as mock_cfg,
+        patch("app.services.llm.claude.anthropic_sdk") as mock_sdk,
+    ):
+        mock_cfg.anthropic_api_key = "sk-ant-test"
+        mock_sdk.AsyncAnthropic.return_value.messages.create = AsyncMock(
+            return_value=fake_response
+        )
+
+        svc = ClaudeService()
+        svc._client = None
+        result = await svc.complete_with_tools([{"role": "user", "content": "Hi"}], [])
+
+    assert result.text == "Hier ist deine Antwort."
+    assert result.tool_calls == []
+
+
+def test_claude_build_tool_result_message() -> None:
+    svc = ClaudeService()
+    tc = ToolCall(id="tu_1", name="create_page", arguments={})
+    msg = svc.build_tool_result_message(tc, [{"type": "text", "text": "OK"}], False)
+    assert msg["role"] == "user"
+    content = msg["content"]
+    assert isinstance(content, list)
+    assert content[0]["type"] == "tool_result"
+    assert content[0]["tool_use_id"] == "tu_1"
+    assert content[0]["is_error"] is False
+
+
+def test_claude_build_assistant_tool_use_message() -> None:
+    svc = ClaudeService()
+    tc = ToolCall(id="tu_2", name="create_page", arguments={"title": "T"})
+    msg = svc.build_assistant_tool_use_message(tc)
+    assert msg["role"] == "assistant"
+    content = msg["content"]
+    assert isinstance(content, list)
+    assert content[0]["type"] == "tool_use"
+    assert content[0]["id"] == "tu_2"
+    assert content[0]["input"] == {"title": "T"}
+
+
+# ---------------------------------------------------------------------------
+# ChatGPTService — complete_with_tools
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_complete_with_tools_returns_tool_calls() -> None:
+    import json as _json
+
+    fake_tc = MagicMock()
+    fake_tc.id = "call_xyz"
+    fake_tc.function.name = "todoist__create_task"
+    fake_tc.function.arguments = _json.dumps({"content": "Einkaufen"})
+
+    fake_message = MagicMock()
+    fake_message.content = None
+    fake_message.tool_calls = [fake_tc]
+
+    fake_choice = MagicMock()
+    fake_choice.message = fake_message
+
+    fake_response = MagicMock()
+    fake_response.choices = [fake_choice]
+
+    with (
+        patch("app.services.llm.chatgpt.settings") as mock_cfg,
+        patch("app.services.llm.chatgpt.AsyncOpenAI") as MockOpenAI,
+    ):
+        mock_cfg.openai_api_key = "sk-test"
+        MockOpenAI.return_value.chat.completions.create = AsyncMock(
+            return_value=fake_response
+        )
+
+        svc = ChatGPTService()
+        svc._client = None
+        result = await svc.complete_with_tools(
+            [{"role": "user", "content": "Erstelle eine Aufgabe"}],
+            [
+                {
+                    "name": "todoist__create_task",
+                    "description": "...",
+                    "input_schema": {},
+                }
+            ],  # noqa: E501
+        )
+
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].name == "todoist__create_task"
+    assert result.tool_calls[0].arguments == {"content": "Einkaufen"}
+
+
+def test_chatgpt_build_tool_result_message() -> None:
+    svc = ChatGPTService()
+    tc = ToolCall(id="call_1", name="create_task", arguments={})
+    msg = svc.build_tool_result_message(tc, [{"type": "text", "text": "Fertig"}], False)
+    assert msg["role"] == "tool"
+    assert msg["tool_call_id"] == "call_1"
+    assert "Fertig" in str(msg["content"])
+
+
+def test_chatgpt_build_tool_result_message_marks_error() -> None:
+    svc = ChatGPTService()
+    tc = ToolCall(id="call_2", name="create_task", arguments={})
+    msg = svc.build_tool_result_message(tc, [{"type": "text", "text": "Fehler!"}], True)
+    assert "[Fehler]" in str(msg["content"])
+
+
+def test_chatgpt_build_assistant_tool_use_message() -> None:
+    import json as _json
+
+    svc = ChatGPTService()
+    tc = ToolCall(id="call_3", name="create_task", arguments={"content": "Aufgabe"})
+    msg = svc.build_assistant_tool_use_message(tc)
+    assert msg["role"] == "assistant"
+    tool_calls = msg["tool_calls"]
+    assert isinstance(tool_calls, list)
+    assert tool_calls[0]["id"] == "call_3"
+    assert tool_calls[0]["type"] == "function"
+    assert _json.loads(tool_calls[0]["function"]["arguments"]) == {"content": "Aufgabe"}

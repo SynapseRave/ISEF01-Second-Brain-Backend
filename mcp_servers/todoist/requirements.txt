@@ -1,0 +1,4 @@
+mcp>=1.0.0
+todoist-api-python>=2.1.7
+uvicorn[standard]>=0.34.0
+starlette>=0.41.0

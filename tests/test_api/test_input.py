@@ -27,7 +27,7 @@ _OTHER_USER_ID = "other-user-456"
 def mock_llm() -> None:
     """Replace the LLM service with a stub that yields two fixed tokens."""
 
-    async def _fake_stream(history, prompt):
+    async def _fake_stream(history, prompt, **kwargs):
         yield "Antwort "
         yield "Text"
 
