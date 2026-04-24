@@ -420,7 +420,7 @@ async def test_process_input_stream_tool_result_updates_record_fields(
         )
 
     done_event = next(e for e in events if e["type"] == "done")
-    input_id = done_event["input_id"]
+    input_id = uuid.UUID(str(done_event["input_id"]))
 
     result = await db_session.execute(select(UserInput).where(UserInput.id == input_id))
     record = result.scalar_one()

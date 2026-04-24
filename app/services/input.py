@@ -261,7 +261,7 @@ async def process_input_stream(
         yield _sse_event(
             {
                 "type": "done",
-                "input_id": record.id,
+                "input_id": str(record.id),
                 "conversation_id": str(record.conversation_id),
             }
         )

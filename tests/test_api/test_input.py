@@ -27,7 +27,7 @@ _OTHER_USER_ID = "other-user-456"
 def mock_llm() -> None:
     """Replace the LLM service with a stub that yields two fixed tokens."""
 
-    async def _fake_stream(history, prompt):
+    async def _fake_stream(history, prompt, **kwargs):
         yield "Antwort "
         yield "Text"
 
@@ -164,7 +164,8 @@ async def test_post_input_done_event_contains_input_id(
     done_events = [e for e in events if e["type"] == "done"]
     assert len(done_events) == 1
     assert "input_id" in done_events[0]
-    assert isinstance(done_events[0]["input_id"], int)
+    # input_id is a UUID serialised as string, not an int
+    uuid.UUID(str(done_events[0]["input_id"]))
 
 
 @pytest.mark.asyncio
