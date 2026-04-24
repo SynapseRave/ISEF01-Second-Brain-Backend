@@ -268,10 +268,8 @@ async def process_input_stream(
 
     except SecondBrainException as exc:
         yield _sse_event({"type": "error", "message": exc.message})
-    except Exception:
-        yield _sse_event(
-            {"type": "error", "message": "Ein unerwarteter Fehler ist aufgetreten."}
-        )
+    except Exception as exc:
+        yield _sse_event({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
 
 
 def _append_tool_exchange(
