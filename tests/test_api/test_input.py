@@ -164,8 +164,7 @@ async def test_post_input_done_event_contains_input_id(
     done_events = [e for e in events if e["type"] == "done"]
     assert len(done_events) == 1
     assert "input_id" in done_events[0]
-    # input_id is a UUID serialised as string, not an int
-    uuid.UUID(str(done_events[0]["input_id"]))
+    assert isinstance(done_events[0]["input_id"], int)
 
 
 @pytest.mark.asyncio

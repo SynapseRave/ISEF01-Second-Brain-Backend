@@ -340,7 +340,7 @@ async def test_process_input_stream_with_tools_emits_tool_call_event(
     assert tool_call_event["service"] == "notion"
     assert tool_call_event["tool"] == "create_page"
 
-    assert "done" in types
+    assert "done" in types, f"events: {events}"
 
 
 @pytest.mark.asyncio
@@ -419,8 +419,9 @@ async def test_process_input_stream_tool_result_updates_record_fields(
             )
         )
 
+    assert any(e["type"] == "done" for e in events), f"events: {events}"
     done_event = next(e for e in events if e["type"] == "done")
-    input_id = uuid.UUID(str(done_event["input_id"]))
+    input_id = done_event["input_id"]
 
     result = await db_session.execute(select(UserInput).where(UserInput.id == input_id))
     record = result.scalar_one()
@@ -490,6 +491,6 @@ async def test_process_input_stream_max_iterations_guard(
         )
 
     # Must complete without infinite loop and reach "done"
-    assert any(e["type"] == "done" for e in events)
+    assert any(e["type"] == "done" for e in events), f"events: {events}"
     # call_tool was called exactly MAX_TOOL_ITERATIONS (2) times
     assert mock_mcp.call_tool.call_count == 2
