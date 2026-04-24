@@ -268,12 +268,9 @@ async def process_input_stream(
 
     except SecondBrainException as exc:
         yield _sse_event({"type": "error", "message": exc.message})
-    except Exception as exc:
-        import traceback
-
-        tb = traceback.format_exc()
+    except Exception:
         yield _sse_event(
-            {"type": "error", "message": f"{type(exc).__name__}: {exc} | {tb}"}
+            {"type": "error", "message": "Ein unerwarteter Fehler ist aufgetreten."}
         )
 
 
@@ -294,9 +291,6 @@ def _append_tool_exchange(
     Returns:
         New message list with the exchange appended.
     """
-    from app.services.llm.base import LLMService
-
-    assert isinstance(llm, LLMService)
     assistant_msg = llm.build_assistant_tool_use_message(tool_call)
     result_msg = llm.build_tool_result_message(
         tool_call, result.content, result.is_error
