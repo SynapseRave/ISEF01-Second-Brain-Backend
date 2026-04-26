@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     mcp_onenote_url: str = "http://localhost:3005"
     mcp_timeout_seconds: int = 30
     mcp_enabled: bool = True
+    # OAuth app credentials served to the frontend at runtime
+    google_calendar_client_id: str = ""
+    microsoft_client_id: str = ""
+    microsoft_tenant_id: str = "common"
 
     @property
     def mcp_server_urls(self) -> dict[str, str]:
