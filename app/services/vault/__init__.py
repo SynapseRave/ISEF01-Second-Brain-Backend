@@ -27,5 +27,11 @@ def get_vault_service(db: AsyncSession) -> VaultService:
             raise ValueError("VAULT_MASTER_KEY must be set when VAULT_BACKEND=local")
         return LocalVaultService(db, settings.vault_master_key)
     if settings.vault_backend == "hashicorp":
+        if not settings.vault_addr:
+            raise ValueError("VAULT_ADDR must be set when VAULT_BACKEND=hashicorp")
+        if not settings.vault_role_id:
+            raise ValueError("VAULT_ROLE_ID must be set when VAULT_BACKEND=hashicorp")
+        if not settings.vault_secret_id:
+            raise ValueError("VAULT_SECRET_ID must be set when VAULT_BACKEND=hashicorp")
         return HashiCorpVaultService()
     raise ValueError(f"Unknown vault backend: {settings.vault_backend!r}")
