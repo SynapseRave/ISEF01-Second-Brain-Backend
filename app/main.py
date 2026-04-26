@@ -11,6 +11,7 @@ from app.core.exceptions import (
     SecondBrainException,
     http_exception_handler,
     second_brain_exception_handler,
+    unhandled_exception_handler,
 )
 
 
@@ -44,6 +45,7 @@ app.add_middleware(
 
 app.add_exception_handler(SecondBrainException, second_brain_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(health.router)
 app.include_router(user.router)
