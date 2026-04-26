@@ -90,15 +90,15 @@ class ChatGPTService(LLMService):
         client = self._get_client()
         msgs = self._prepare_messages(history, prompt, messages)
 
-        async with client.chat.completions.create(
+        stream = await client.chat.completions.create(
             model=_DEFAULT_MODEL,
             messages=msgs,
             stream=True,
-        ) as stream:
-            async for chunk in stream:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    yield delta.content
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                yield delta.content
 
     async def complete_with_tools(
         self,
