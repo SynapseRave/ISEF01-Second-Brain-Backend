@@ -79,17 +79,14 @@ async def test_chatgpt_streams_tokens() -> None:
             chunk.choices[0].delta.content = text
             yield chunk
 
-    fake_stream = AsyncMock()
-    fake_stream.__aenter__ = AsyncMock(return_value=fake_stream)
-    fake_stream.__aexit__ = AsyncMock(return_value=False)
-    fake_stream.__aiter__ = lambda self: _fake_chunks()
-
     with (
         patch("app.services.llm.chatgpt.settings") as mock_cfg,
         patch("app.services.llm.chatgpt.AsyncOpenAI") as MockOpenAI,
     ):
         mock_cfg.openai_api_key = "sk-test"
-        MockOpenAI.return_value.chat.completions.create.return_value = fake_stream
+        MockOpenAI.return_value.chat.completions.create = AsyncMock(
+            return_value=_fake_chunks()
+        )
 
         svc = ChatGPTService()
         svc._client = None
@@ -105,17 +102,14 @@ async def test_chatgpt_skips_none_delta_content() -> None:
             chunk.choices[0].delta.content = text
             yield chunk
 
-    fake_stream = AsyncMock()
-    fake_stream.__aenter__ = AsyncMock(return_value=fake_stream)
-    fake_stream.__aexit__ = AsyncMock(return_value=False)
-    fake_stream.__aiter__ = lambda self: _fake_chunks()
-
     with (
         patch("app.services.llm.chatgpt.settings") as mock_cfg,
         patch("app.services.llm.chatgpt.AsyncOpenAI") as MockOpenAI,
     ):
         mock_cfg.openai_api_key = "sk-test"
-        MockOpenAI.return_value.chat.completions.create.return_value = fake_stream
+        MockOpenAI.return_value.chat.completions.create = AsyncMock(
+            return_value=_fake_chunks()
+        )
 
         svc = ChatGPTService()
         svc._client = None
