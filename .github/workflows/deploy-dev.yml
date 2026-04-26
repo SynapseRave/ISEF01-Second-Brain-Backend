@@ -1,0 +1,244 @@
+name: Deploy DEV
+
+on:
+  push:
+    branches: [develop]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build & push Docker images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha-tag: dev-${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}:dev
+            ${{ env.REGISTRY }}/${{ github.repository }}:dev-${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push mcp-notion
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp_servers/notion
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-notion:dev
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-notion:dev-${{ github.sha }}
+          cache-from: type=gha,scope=mcp-notion
+          cache-to: type=gha,mode=max,scope=mcp-notion
+
+      - name: Build and push mcp-todoist
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp_servers/todoist
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-todoist:dev
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-todoist:dev-${{ github.sha }}
+          cache-from: type=gha,scope=mcp-todoist
+          cache-to: type=gha,mode=max,scope=mcp-todoist
+
+      - name: Build and push mcp-google-calendar
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp_servers/google_calendar
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-google-calendar:dev
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-google-calendar:dev-${{ github.sha }}
+          cache-from: type=gha,scope=mcp-google-calendar
+          cache-to: type=gha,mode=max,scope=mcp-google-calendar
+
+      - name: Build and push mcp-obsidian
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp_servers/obsidian
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-obsidian:dev
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-obsidian:dev-${{ github.sha }}
+          cache-from: type=gha,scope=mcp-obsidian
+          cache-to: type=gha,mode=max,scope=mcp-obsidian
+
+      - name: Build and push mcp-onenote
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp_servers/onenote
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-onenote:dev
+            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-onenote:dev-${{ github.sha }}
+          cache-from: type=gha,scope=mcp-onenote
+          cache-to: type=gha,mode=max,scope=mcp-onenote
+
+  deploy:
+    name: Deploy to secondbrain-dev
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Update backend-secret in cluster
+        run: |
+          kubectl create secret generic backend-secret \
+            --from-literal=DATABASE_URL="postgresql+asyncpg://secondbrain:devpassword123@postgres.secondbrain-dev.svc.cluster.local:5432/secondbrain" \
+            --from-literal=KEYCLOAK_URL="http://keycloak.secondbrain-dev.svc.cluster.local:8080" \
+            --from-literal=KEYCLOAK_PUBLIC_URL="https://auth.secondbrain.bathon.business" \
+            --from-literal=KEYCLOAK_REALM="secondbrain-dev" \
+            --from-literal=KEYCLOAK_CLIENT_ID="backend" \
+            --from-literal=KEYCLOAK_ADMIN_USER="admin" \
+            --from-literal=KEYCLOAK_ADMIN_PASSWORD="admin123dev" \
+            --from-literal=CORS_ORIGINS='["https://app.secondbrain.bathon.business"]' \
+            --from-literal=LLM_PROVIDER="openai" \
+            --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal=VAULT_BACKEND="local" \
+            --from-literal=VAULT_MASTER_KEY="${{ secrets.VAULT_MASTER_KEY }}" \
+            --from-literal=MCP_NOTION_URL="http://mcp-notion.secondbrain-dev.svc.cluster.local:3001" \
+            --from-literal=MCP_TODOIST_URL="http://mcp-todoist.secondbrain-dev.svc.cluster.local:3002" \
+            --from-literal=MCP_GOOGLE_CALENDAR_URL="http://mcp-google-calendar.secondbrain-dev.svc.cluster.local:3003" \
+            --from-literal=MCP_OBSIDIAN_URL="http://mcp-obsidian.secondbrain-dev.svc.cluster.local:3004" \
+            --from-literal=MCP_ONENOTE_URL="http://mcp-onenote.secondbrain-dev.svc.cluster.local:3005" \
+            --from-literal=MCP_ENABLED="true" \
+            --namespace secondbrain-dev \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy backend
+        run: |
+          kubectl set image deployment/backend \
+            backend=${{ env.REGISTRY }}/${{ github.repository }}:dev-${{ github.sha }} \
+            -n secondbrain-dev
+          kubectl rollout status deployment/backend -n secondbrain-dev --timeout=120s
+
+      - name: Deploy mcp-notion
+        run: |
+          kubectl set image deployment/mcp-notion \
+            mcp-notion=${{ env.REGISTRY }}/${{ github.repository }}/mcp-notion:dev-${{ github.sha }} \
+            -n secondbrain-dev
+          kubectl rollout status deployment/mcp-notion -n secondbrain-dev --timeout=120s
+
+      - name: Deploy mcp-todoist
+        run: |
+          kubectl set image deployment/mcp-todoist \
+            mcp-todoist=${{ env.REGISTRY }}/${{ github.repository }}/mcp-todoist:dev-${{ github.sha }} \
+            -n secondbrain-dev
+          kubectl rollout status deployment/mcp-todoist -n secondbrain-dev --timeout=120s
+
+      - name: Deploy mcp-google-calendar
+        run: |
+          kubectl set image deployment/mcp-google-calendar \
+            mcp-google-calendar=${{ env.REGISTRY }}/${{ github.repository }}/mcp-google-calendar:dev-${{ github.sha }} \
+            -n secondbrain-dev
+          kubectl rollout status deployment/mcp-google-calendar -n secondbrain-dev --timeout=120s
+
+      - name: Deploy mcp-obsidian
+        run: |
+          kubectl set image deployment/mcp-obsidian \
+            mcp-obsidian=${{ env.REGISTRY }}/${{ github.repository }}/mcp-obsidian:dev-${{ github.sha }} \
+            -n secondbrain-dev
+          kubectl rollout status deployment/mcp-obsidian -n secondbrain-dev --timeout=120s
+
+      - name: Deploy mcp-onenote
+        run: |
+          kubectl set image deployment/mcp-onenote \
+            mcp-onenote=${{ env.REGISTRY }}/${{ github.repository }}/mcp-onenote:dev-${{ github.sha }} \
+            -n secondbrain-dev
+          kubectl rollout status deployment/mcp-onenote -n secondbrain-dev --timeout=120s
+
+  verify:
+    name: Verify all connections
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify Backend API (extern)
+        run: curl -sf --max-time 10 https://api.secondbrain.bathon.business/health
+
+      - name: Verify Keycloak (extern, health)
+        run: curl -sf --max-time 10 https://auth.secondbrain.bathon.business/health/live
+
+      - name: Verify Keycloak JWKS – DEV Realm
+        run: |
+          curl -sf --max-time 10 \
+            "https://auth.secondbrain.bathon.business/realms/secondbrain-dev/protocol/openid-connect/certs" \
+            | grep -q '"keys"'
+          echo "Keycloak JWKS OK"
+
+      - name: Verify Grafana (extern)
+        run: curl -sf --max-time 10 https://grafana.secondbrain.bathon.business/api/health
+
+      - name: Verify PostgreSQL (intern, pg_isready)
+        run: |
+          POSTGRES_POD=$(kubectl get pod -n secondbrain-dev -l app=postgres \
+            -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n secondbrain-dev "$POSTGRES_POD" -- \
+            pg_isready -U secondbrain -d secondbrain
+          echo "PostgreSQL OK"
+
+      - name: Verify all MCP services (intern via temporärem Pod)
+        run: |
+          kubectl run verify-mcp-${{ github.run_id }} \
+            --image=curlimages/curl:latest \
+            --restart=Never \
+            --namespace=secondbrain-dev \
+            --command \
+            -- /bin/sh -c "\
+              curl -sf http://mcp-notion.secondbrain-dev.svc.cluster.local:3001/health && \
+              curl -sf http://mcp-todoist.secondbrain-dev.svc.cluster.local:3002/health && \
+              curl -sf http://mcp-google-calendar.secondbrain-dev.svc.cluster.local:3003/health && \
+              curl -sf http://mcp-obsidian.secondbrain-dev.svc.cluster.local:3004/health && \
+              curl -sf http://mcp-onenote.secondbrain-dev.svc.cluster.local:3005/health && \
+              echo 'All MCP services healthy'"
+
+          kubectl wait pod/verify-mcp-${{ github.run_id }} \
+            --for=condition=Succeeded \
+            --timeout=60s \
+            -n secondbrain-dev
+
+          kubectl logs pod/verify-mcp-${{ github.run_id }} -n secondbrain-dev
+
+          kubectl delete pod/verify-mcp-${{ github.run_id }} \
+            -n secondbrain-dev \
+            --ignore-not-found
