@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     # Required when vault_backend="local"; 32-byte URL-safe base64 Fernet key
     vault_master_key: str | None = None
     # Required when vault_backend="hashicorp"
-    vault_addr: str | None = None  # HashiCorp Vault server URL, e.g. https://vault.example.com
+    vault_addr: str | None = (
+        None  # HashiCorp Vault server URL, e.g. https://vault.example.com
+    )
     vault_role_id: str | None = None  # AppRole Role ID
     vault_secret_id: str | None = None  # AppRole Secret ID
     # MCP server base URLs (Docker internal hostnames in production)
