@@ -115,6 +115,7 @@ jobs:
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > ~/.kube/config
+          sed -i 's/127\.0\.0\.1/178.104.90.172/g' ~/.kube/config
           chmod 600 ~/.kube/config
 
       - name: Update backend-secret in cluster
@@ -204,6 +205,7 @@ jobs:
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > ~/.kube/config
+          sed -i 's/127\.0\.0\.1/178.104.90.172/g' ~/.kube/config
           chmod 600 ~/.kube/config
 
       - name: Verify Backend API (extern)
