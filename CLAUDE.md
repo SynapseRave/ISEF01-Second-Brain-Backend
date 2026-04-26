@@ -71,7 +71,7 @@ Detailed conventions are in `.claude/rules/`:
 - Keycloak OIDC middleware (JWT validation on all routes except `/health`)
 - `POST /api/input/` — SSE streaming with agentic tool-use loop (max 3 iterations)
 - `CRUD /api/credential/applications/` — encrypted via Fernet/Vault
-- 5 MCP servers: notion (3001), todoist (3002), google_calendar (3003), obsidian (3004), onenote (3005)
+- 5 MCP servers: notion (3001), todoist (3002), google_calendar (3003), obsidian (3004), onenote (3005) ⚠️ OneNote nicht aktiv (Client-ID fehlt)
 - Credentials forwarded as `X-Service-Credentials` header to MCP servers
 - Keycloak realm export: `frontend` public client with PKCE S256 and correct redirect URIs
 - `keycloak/setup-users.sh`: sets test-user passwords via Admin API (Keycloak 26 workaround)

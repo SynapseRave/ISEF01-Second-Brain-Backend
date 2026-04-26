@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.auth import AuthMiddleware
-from app.api.routes import credential, health, input, user
+from app.api.routes import config, credential, health, input, user
 from app.core.config import settings
 from app.core.exceptions import (
     SecondBrainException,
@@ -51,3 +51,4 @@ app.include_router(health.router)
 app.include_router(user.router)
 app.include_router(input.router)
 app.include_router(credential.router)
+app.include_router(config.router)
