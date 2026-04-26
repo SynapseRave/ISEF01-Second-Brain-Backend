@@ -144,13 +144,13 @@ jobs:
             --namespace secondbrain-dev \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy backend
+      - name: Patch backend deployment – envFrom + image
         run: |
           BASE=${{ needs.build-and-push.outputs.image-base }}
-          kubectl set image deployment/backend \
-            backend=${BASE}:dev-${{ github.sha }} \
-            -n secondbrain-dev
-          kubectl rollout status deployment/backend -n secondbrain-dev --timeout=120s
+          kubectl patch deployment backend -n secondbrain-dev \
+            --type=strategic \
+            -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"backend\",\"image\":\"${BASE}:dev-${{ github.sha }}\",\"envFrom\":[{\"secretRef\":{\"name\":\"backend-secret\"}}]}]}}}}"
+          kubectl rollout status deployment/backend -n secondbrain-dev --timeout=180s
 
       - name: Deploy mcp-notion
         run: |
