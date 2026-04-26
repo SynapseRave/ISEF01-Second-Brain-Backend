@@ -108,8 +108,6 @@ jobs:
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
 
@@ -157,36 +155,41 @@ jobs:
       - name: Deploy mcp-notion
         run: |
           BASE=${{ needs.build-and-push.outputs.image-base }}
-          MCP_IMAGE=${BASE}/mcp-notion:dev-${{ github.sha }} \
-            envsubst < k8s/mcp-notion.yaml | kubectl apply -f -
+          kubectl set image deployment/mcp-notion \
+            mcp-notion=${BASE}/mcp-notion:dev-${{ github.sha }} \
+            -n secondbrain-dev
           kubectl rollout status deployment/mcp-notion -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-todoist
         run: |
           BASE=${{ needs.build-and-push.outputs.image-base }}
-          MCP_IMAGE=${BASE}/mcp-todoist:dev-${{ github.sha }} \
-            envsubst < k8s/mcp-todoist.yaml | kubectl apply -f -
+          kubectl set image deployment/mcp-todoist \
+            mcp-todoist=${BASE}/mcp-todoist:dev-${{ github.sha }} \
+            -n secondbrain-dev
           kubectl rollout status deployment/mcp-todoist -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-google-calendar
         run: |
           BASE=${{ needs.build-and-push.outputs.image-base }}
-          MCP_IMAGE=${BASE}/mcp-google-calendar:dev-${{ github.sha }} \
-            envsubst < k8s/mcp-google-calendar.yaml | kubectl apply -f -
+          kubectl set image deployment/mcp-google-calendar \
+            mcp-google-calendar=${BASE}/mcp-google-calendar:dev-${{ github.sha }} \
+            -n secondbrain-dev
           kubectl rollout status deployment/mcp-google-calendar -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-obsidian
         run: |
           BASE=${{ needs.build-and-push.outputs.image-base }}
-          MCP_IMAGE=${BASE}/mcp-obsidian:dev-${{ github.sha }} \
-            envsubst < k8s/mcp-obsidian.yaml | kubectl apply -f -
+          kubectl set image deployment/mcp-obsidian \
+            mcp-obsidian=${BASE}/mcp-obsidian:dev-${{ github.sha }} \
+            -n secondbrain-dev
           kubectl rollout status deployment/mcp-obsidian -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-onenote
         run: |
           BASE=${{ needs.build-and-push.outputs.image-base }}
-          MCP_IMAGE=${BASE}/mcp-onenote:dev-${{ github.sha }} \
-            envsubst < k8s/mcp-onenote.yaml | kubectl apply -f -
+          kubectl set image deployment/mcp-onenote \
+            mcp-onenote=${BASE}/mcp-onenote:dev-${{ github.sha }} \
+            -n secondbrain-dev
           kubectl rollout status deployment/mcp-onenote -n secondbrain-dev --timeout=120s
 
   verify:
