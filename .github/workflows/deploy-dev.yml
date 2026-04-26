@@ -15,10 +15,15 @@ jobs:
       contents: read
       packages: write
     outputs:
-      sha-tag: dev-${{ github.sha }}
+      image-base: ${{ steps.lowercase.outputs.base }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Lowercase image base
+        id: lowercase
+        run: |
+          echo "base=$(echo '${{ env.REGISTRY }}/${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -36,8 +41,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}:dev
-            ${{ env.REGISTRY }}/${{ github.repository }}:dev-${{ github.sha }}
+            ${{ steps.lowercase.outputs.base }}:dev
+            ${{ steps.lowercase.outputs.base }}:dev-${{ github.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -47,8 +52,8 @@ jobs:
           context: ./mcp_servers/notion
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-notion:dev
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-notion:dev-${{ github.sha }}
+            ${{ steps.lowercase.outputs.base }}/mcp-notion:dev
+            ${{ steps.lowercase.outputs.base }}/mcp-notion:dev-${{ github.sha }}
           cache-from: type=gha,scope=mcp-notion
           cache-to: type=gha,mode=max,scope=mcp-notion
 
@@ -58,8 +63,8 @@ jobs:
           context: ./mcp_servers/todoist
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-todoist:dev
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-todoist:dev-${{ github.sha }}
+            ${{ steps.lowercase.outputs.base }}/mcp-todoist:dev
+            ${{ steps.lowercase.outputs.base }}/mcp-todoist:dev-${{ github.sha }}
           cache-from: type=gha,scope=mcp-todoist
           cache-to: type=gha,mode=max,scope=mcp-todoist
 
@@ -69,8 +74,8 @@ jobs:
           context: ./mcp_servers/google_calendar
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-google-calendar:dev
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-google-calendar:dev-${{ github.sha }}
+            ${{ steps.lowercase.outputs.base }}/mcp-google-calendar:dev
+            ${{ steps.lowercase.outputs.base }}/mcp-google-calendar:dev-${{ github.sha }}
           cache-from: type=gha,scope=mcp-google-calendar
           cache-to: type=gha,mode=max,scope=mcp-google-calendar
 
@@ -80,8 +85,8 @@ jobs:
           context: ./mcp_servers/obsidian
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-obsidian:dev
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-obsidian:dev-${{ github.sha }}
+            ${{ steps.lowercase.outputs.base }}/mcp-obsidian:dev
+            ${{ steps.lowercase.outputs.base }}/mcp-obsidian:dev-${{ github.sha }}
           cache-from: type=gha,scope=mcp-obsidian
           cache-to: type=gha,mode=max,scope=mcp-obsidian
 
@@ -91,8 +96,8 @@ jobs:
           context: ./mcp_servers/onenote
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-onenote:dev
-            ${{ env.REGISTRY }}/${{ github.repository }}/mcp-onenote:dev-${{ github.sha }}
+            ${{ steps.lowercase.outputs.base }}/mcp-onenote:dev
+            ${{ steps.lowercase.outputs.base }}/mcp-onenote:dev-${{ github.sha }}
           cache-from: type=gha,scope=mcp-onenote
           cache-to: type=gha,mode=max,scope=mcp-onenote
 
@@ -125,8 +130,10 @@ jobs:
             --from-literal=CORS_ORIGINS='["https://app.secondbrain.bathon.business"]' \
             --from-literal=LLM_PROVIDER="openai" \
             --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            --from-literal=VAULT_BACKEND="local" \
-            --from-literal=VAULT_MASTER_KEY="${{ secrets.VAULT_MASTER_KEY }}" \
+            --from-literal=VAULT_BACKEND="hashicorp" \
+            --from-literal=VAULT_ADDR="https://vault.secondbrain.bathon.business" \
+            --from-literal=VAULT_ROLE_ID="${{ secrets.VAULT_ROLE_ID }}" \
+            --from-literal=VAULT_SECRET_ID="${{ secrets.VAULT_SECRET_ID }}" \
             --from-literal=MCP_NOTION_URL="http://mcp-notion.secondbrain-dev.svc.cluster.local:3001" \
             --from-literal=MCP_TODOIST_URL="http://mcp-todoist.secondbrain-dev.svc.cluster.local:3002" \
             --from-literal=MCP_GOOGLE_CALENDAR_URL="http://mcp-google-calendar.secondbrain-dev.svc.cluster.local:3003" \
@@ -138,43 +145,49 @@ jobs:
 
       - name: Deploy backend
         run: |
+          BASE=${{ needs.build-and-push.outputs.image-base }}
           kubectl set image deployment/backend \
-            backend=${{ env.REGISTRY }}/${{ github.repository }}:dev-${{ github.sha }} \
+            backend=${BASE}:dev-${{ github.sha }} \
             -n secondbrain-dev
           kubectl rollout status deployment/backend -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-notion
         run: |
+          BASE=${{ needs.build-and-push.outputs.image-base }}
           kubectl set image deployment/mcp-notion \
-            mcp-notion=${{ env.REGISTRY }}/${{ github.repository }}/mcp-notion:dev-${{ github.sha }} \
+            mcp-notion=${BASE}/mcp-notion:dev-${{ github.sha }} \
             -n secondbrain-dev
           kubectl rollout status deployment/mcp-notion -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-todoist
         run: |
+          BASE=${{ needs.build-and-push.outputs.image-base }}
           kubectl set image deployment/mcp-todoist \
-            mcp-todoist=${{ env.REGISTRY }}/${{ github.repository }}/mcp-todoist:dev-${{ github.sha }} \
+            mcp-todoist=${BASE}/mcp-todoist:dev-${{ github.sha }} \
             -n secondbrain-dev
           kubectl rollout status deployment/mcp-todoist -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-google-calendar
         run: |
+          BASE=${{ needs.build-and-push.outputs.image-base }}
           kubectl set image deployment/mcp-google-calendar \
-            mcp-google-calendar=${{ env.REGISTRY }}/${{ github.repository }}/mcp-google-calendar:dev-${{ github.sha }} \
+            mcp-google-calendar=${BASE}/mcp-google-calendar:dev-${{ github.sha }} \
             -n secondbrain-dev
           kubectl rollout status deployment/mcp-google-calendar -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-obsidian
         run: |
+          BASE=${{ needs.build-and-push.outputs.image-base }}
           kubectl set image deployment/mcp-obsidian \
-            mcp-obsidian=${{ env.REGISTRY }}/${{ github.repository }}/mcp-obsidian:dev-${{ github.sha }} \
+            mcp-obsidian=${BASE}/mcp-obsidian:dev-${{ github.sha }} \
             -n secondbrain-dev
           kubectl rollout status deployment/mcp-obsidian -n secondbrain-dev --timeout=120s
 
       - name: Deploy mcp-onenote
         run: |
+          BASE=${{ needs.build-and-push.outputs.image-base }}
           kubectl set image deployment/mcp-onenote \
-            mcp-onenote=${{ env.REGISTRY }}/${{ github.repository }}/mcp-onenote:dev-${{ github.sha }} \
+            mcp-onenote=${BASE}/mcp-onenote:dev-${{ github.sha }} \
             -n secondbrain-dev
           kubectl rollout status deployment/mcp-onenote -n secondbrain-dev --timeout=120s
 
