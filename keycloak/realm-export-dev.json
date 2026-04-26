@@ -43,6 +43,7 @@
       "directAccessGrantsEnabled": false,
       "redirectUris": [
         "https://app.secondbrain.bathon.business",
+        "https://app.secondbrain.bathon.business/",
         "https://app.secondbrain.bathon.business/*"
       ],
       "webOrigins": [
