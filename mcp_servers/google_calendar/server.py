@@ -19,7 +19,7 @@ from mcp.server.sse import SseServerTransport
 from mcp.types import TextContent, Tool
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 
 _credentials_var: ContextVar[dict] = ContextVar("credentials", default={})
@@ -39,6 +39,10 @@ def _get_service():
     if isinstance(expires_at, str) and expires_at:
         try:
             expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=UTC)
+            # google-auth compares against naive UTC datetimes internally
+            expiry = expiry.astimezone(UTC).replace(tzinfo=None)
         except ValueError:
             expiry = None
     creds = Credentials(
@@ -483,6 +487,7 @@ async def _handle_sse(request: Request):
             )
     finally:
         _credentials_var.reset(token)
+    return Response()
 
 
 async def _health(_: Request):
