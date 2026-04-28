@@ -60,6 +60,9 @@ services:
   mcp-google-calendar:
     build: ./mcp_servers/google_calendar
     restart: unless-stopped
+    environment:
+      GOOGLE_CALENDAR_CLIENT_ID: ${GOOGLE_CALENDAR_CLIENT_ID:-}
+      GOOGLE_CALENDAR_CLIENT_SECRET: ${GOOGLE_CALENDAR_CLIENT_SECRET:-}
     ports:
       - "3003:3003"
 
