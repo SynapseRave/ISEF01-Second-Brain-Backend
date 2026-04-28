@@ -11,6 +11,7 @@ import json
 import os
 from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -30,6 +31,7 @@ sse = SseServerTransport("/messages/")
 _GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CALENDAR_CLIENT_ID", "")
 _GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CALENDAR_CLIENT_SECRET", "")
 _TOKEN_URI = "https://oauth2.googleapis.com/token"
+_DEFAULT_TIMEZONE = ZoneInfo("Europe/Berlin")
 
 
 def _get_service():
@@ -57,13 +59,41 @@ def _get_service():
 
 
 def _event_start(event: dict) -> str:
-    return event.get("start", {}).get("dateTime", event.get("start", {}).get("date", ""))
+    return event.get("start", {}).get(
+        "dateTime",
+        event.get("start", {}).get("date", ""),
+    )
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=_DEFAULT_TIMEZONE)
+    return parsed.astimezone(UTC)
 
 
 def _default_search_window() -> tuple[str, str]:
     now = datetime.now(tz=UTC)
-    start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-    end = now.replace(year=now.year + 1, month=12, day=31, hour=23, minute=59, second=59, microsecond=0)
+    start = now.replace(
+        month=1,
+        day=1,
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    end = now.replace(
+        year=now.year + 1,
+        month=12,
+        day=31,
+        hour=23,
+        minute=59,
+        second=59,
+        microsecond=0,
+    )
     return start.isoformat(), end.isoformat()
 
 
@@ -109,14 +139,28 @@ def _find_matching_events(
     return items
 
 
-def _resolve_event(service, args: dict) -> tuple[dict | None, list[TextContent] | None]:
+def _resolve_event(
+    service,
+    args: dict,
+) -> tuple[dict | None, list[TextContent] | None]:
     calendar_id = args.get("calendar_id", "primary")
     event_id = args.get("event_id")
     if event_id:
-        event = service.events().get(calendarId=calendar_id, eventId=event_id).execute()
+        event = service.events().get(
+            calendarId=calendar_id,
+            eventId=event_id,
+        ).execute()
         return event, None
 
-    summary = args.get("summary")
+    summary = (
+        args.get("lookup_summary")
+        or args.get("current_summary")
+        or args.get("summary")
+    )
+    lookup_start = (
+        args.get("lookup_start_datetime")
+        or args.get("current_start_datetime")
+    )
     time_min = args.get("time_min")
     time_max = args.get("time_max")
     date = args.get("date")
@@ -146,6 +190,14 @@ def _resolve_event(service, args: dict) -> tuple[dict | None, list[TextContent] 
         time_min=time_min,
         time_max=time_max,
     )
+    if lookup_start:
+        requested_start = _parse_datetime(lookup_start)
+        if requested_start is not None:
+            matches = [
+                ev
+                for ev in matches
+                if _parse_datetime(_event_start(ev)) == requested_start
+            ]
     if not matches:
         return (
             None,
@@ -169,8 +221,8 @@ def _resolve_event(service, args: dict) -> tuple[dict | None, list[TextContent] 
                 TextContent(
                     type="text",
                     text=(
-                        "Mehrere passende Termine gefunden. Bitte verwende eine genauere Zeitspanne oder die event_id:\n"
-                        + "\n".join(lines)
+                        "Mehrere passende Termine gefunden. Bitte verwende eine genauere Zeitspanne, "
+                        "lookup_start_datetime oder die event_id:\n" + "\n".join(lines)
                     ),
                 )
             ],
@@ -243,13 +295,29 @@ async def _list_tools() -> list[Tool]:
         ),
         Tool(
             name="update_event",
-            description="Aktualisiere einen bestehenden Termin im Google Kalender. Nutze bevorzugt event_id, alternativ kann der Termin per exaktem Titel in summary und optional time_min/time_max gefunden werden.",
+            description="Aktualisiere einen bestehenden Termin im Google Kalender. Nutze bevorzugt event_id, alternativ kann der bestehende Termin über lookup_summary/current_summary und optional lookup_start_datetime gefunden werden.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "event_id": {
                         "type": "string",
                         "description": "ID des zu aktualisierenden Termins",
+                    },
+                    "lookup_summary": {
+                        "type": "string",
+                        "description": "Aktueller/exakter Titel des bestehenden Termins, wenn per Titel gesucht werden soll",
+                    },
+                    "current_summary": {
+                        "type": "string",
+                        "description": "Alias für den aktuellen/exakten Titel des bestehenden Termins",
+                    },
+                    "lookup_start_datetime": {
+                        "type": "string",
+                        "description": "Aktuelle/exakte Startzeit des bestehenden Termins im ISO 8601 Format, um gleichnamige Termine eindeutig zu finden",
+                    },
+                    "current_start_datetime": {
+                        "type": "string",
+                        "description": "Alias für die aktuelle/exakte Startzeit des bestehenden Termins",
                     },
                     "summary": {
                         "type": "string",
@@ -288,7 +356,7 @@ async def _list_tools() -> list[Tool]:
         ),
         Tool(
             name="delete_event",
-            description="Lösche einen bestehenden Termin im Google Kalender. Nutze bevorzugt event_id, alternativ kann der Termin per exaktem Titel in summary und optional time_min/time_max gefunden werden.",
+            description="Lösche einen bestehenden Termin im Google Kalender. Nutze bevorzugt event_id, alternativ kann der bestehende Termin über lookup_summary/current_summary und optional lookup_start_datetime gefunden werden.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -299,6 +367,22 @@ async def _list_tools() -> list[Tool]:
                     "calendar_id": {
                         "type": "string",
                         "description": "Kalender-ID (Standard: 'primary')",
+                    },
+                    "lookup_summary": {
+                        "type": "string",
+                        "description": "Aktueller/exakter Titel des bestehenden Termins, wenn per Titel gesucht werden soll",
+                    },
+                    "current_summary": {
+                        "type": "string",
+                        "description": "Alias für den aktuellen/exakten Titel des bestehenden Termins",
+                    },
+                    "lookup_start_datetime": {
+                        "type": "string",
+                        "description": "Aktuelle/exakte Startzeit des bestehenden Termins im ISO 8601 Format, um gleichnamige Termine eindeutig zu finden",
+                    },
+                    "current_start_datetime": {
+                        "type": "string",
+                        "description": "Alias für die aktuelle/exakte Startzeit des bestehenden Termins",
                     },
                     "summary": {
                         "type": "string",
@@ -411,7 +495,7 @@ def _update_event(args: dict) -> list[TextContent]:
     assert event is not None
     event_id = event["id"]
 
-    if "summary" in args:
+    if "summary" in args and args["summary"]:
         event["summary"] = args["summary"]
     if "description" in args:
         event["description"] = args["description"]
