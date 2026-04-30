@@ -47,7 +47,12 @@ async def test_exchange_google_token_persists_credentials(
         "expires_in": 3600,
     }
 
-    with patch("app.services.auth.httpx.AsyncClient") as mock_client_cls:
+    with (
+        patch("app.services.auth.settings") as mock_settings,
+        patch("app.services.auth.httpx.AsyncClient") as mock_client_cls,
+    ):
+        mock_settings.google_calendar_client_secret = "test-secret"
+        mock_settings.google_calendar_client_id = "test-client-id"
         mock_client = mock_client_cls.return_value
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
