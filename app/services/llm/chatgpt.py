@@ -90,15 +90,21 @@ class ChatGPTService(LLMService):
         client = self._get_client()
         msgs = self._prepare_messages(history, prompt, messages)
 
-        stream = await client.chat.completions.create(
-            model=_DEFAULT_MODEL,
-            messages=msgs,
-            stream=True,
-        )
-        async for chunk in stream:
-            delta = chunk.choices[0].delta
-            if delta.content:
-                yield delta.content
+        try:
+            stream = await client.chat.completions.create(
+                model=_DEFAULT_MODEL,
+                messages=msgs,
+                stream=True,
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    yield delta.content
+        except Exception as exc:
+            raise SecondBrainException(
+                f"OpenAI-Anfrage fehlgeschlagen: {exc}",
+                status_code=502,
+            ) from exc
 
     async def complete_with_tools(
         self,
@@ -133,13 +139,19 @@ class ChatGPTService(LLMService):
             for t in tools
         ]
 
-        response = await client.chat.completions.create(
-            model=_DEFAULT_MODEL,
-            messages=messages,
-            tools=openai_tools,
-            tool_choice="auto",
-            stream=False,
-        )
+        try:
+            response = await client.chat.completions.create(
+                model=_DEFAULT_MODEL,
+                messages=messages,
+                tools=openai_tools,
+                tool_choice="auto",
+                stream=False,
+            )
+        except Exception as exc:
+            raise SecondBrainException(
+                f"OpenAI-Tool-Anfrage fehlgeschlagen: {exc}",
+                status_code=502,
+            ) from exc
 
         choice = response.choices[0]
         text = choice.message.content

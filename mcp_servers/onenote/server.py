@@ -17,7 +17,7 @@ from mcp.server.sse import SseServerTransport
 from mcp.types import TextContent, Tool
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 
 _credentials_var: ContextVar[dict] = ContextVar("credentials", default={})
@@ -162,6 +162,7 @@ async def _handle_sse(request: Request):
             )
     finally:
         _credentials_var.reset(token)
+    return Response()
 
 
 async def _health(_: Request):

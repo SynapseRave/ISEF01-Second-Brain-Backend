@@ -72,14 +72,20 @@ class ClaudeService(LLMService):
             messages if messages is not None else self._build_messages(history, prompt)
         )
 
-        async with client.messages.stream(
-            model=_DEFAULT_MODEL,
-            max_tokens=_MAX_TOKENS,
-            system=_SYSTEM_PROMPT,
-            messages=msgs,
-        ) as stream:
-            async for text in stream.text_stream:
-                yield text
+        try:
+            async with client.messages.stream(
+                model=_DEFAULT_MODEL,
+                max_tokens=_MAX_TOKENS,
+                system=_SYSTEM_PROMPT,
+                messages=msgs,
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+        except Exception as exc:
+            raise SecondBrainException(
+                f"Anthropic-Anfrage fehlgeschlagen: {exc}",
+                status_code=502,
+            ) from exc
 
     async def complete_with_tools(
         self,
@@ -105,13 +111,19 @@ class ClaudeService(LLMService):
             for t in tools
         ]
 
-        response = await client.messages.create(
-            model=_DEFAULT_MODEL,
-            max_tokens=_MAX_TOKENS,
-            system=_SYSTEM_PROMPT,
-            messages=messages,
-            tools=anthropic_tools,
-        )
+        try:
+            response = await client.messages.create(
+                model=_DEFAULT_MODEL,
+                max_tokens=_MAX_TOKENS,
+                system=_SYSTEM_PROMPT,
+                messages=messages,
+                tools=anthropic_tools,
+            )
+        except Exception as exc:
+            raise SecondBrainException(
+                f"Anthropic-Tool-Anfrage fehlgeschlagen: {exc}",
+                status_code=502,
+            ) from exc
 
         text_parts: list[str] = []
         tool_calls: list[ToolCall] = []

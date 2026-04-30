@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     mcp_enabled: bool = True
     # OAuth app credentials served to the frontend at runtime
     google_calendar_client_id: str = ""
+    google_calendar_client_secret: str = ""
     microsoft_client_id: str = ""
     microsoft_tenant_id: str = "common"
 

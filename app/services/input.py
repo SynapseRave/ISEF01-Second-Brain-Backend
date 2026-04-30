@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -18,11 +19,24 @@ from app.services.vault.base import VaultService
 
 _ALL_SERVICES = list(ApplicationService)
 _MAX_TOOL_ITERATIONS = 3
+logger = logging.getLogger(__name__)
 
 
 def _sse_event(data: dict) -> str:
     """Format a dict as a Server-Sent Event string."""
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _serialize_input_schema(raw_schema: object) -> dict:
+    """Normalize MCP tool input schemas to plain JSON-serializable dicts."""
+    if raw_schema is None:
+        return {}
+    if isinstance(raw_schema, dict):
+        return raw_schema
+    model_dump = getattr(raw_schema, "model_dump", None)
+    if callable(model_dump):
+        return model_dump()
+    return {}
 
 
 async def save_input(
@@ -169,10 +183,8 @@ async def process_input_stream(
                             {
                                 "name": f"{service.value}__{tool.name}",
                                 "description": tool.description or "",
-                                "input_schema": (
-                                    tool.inputSchema.model_dump()
-                                    if tool.inputSchema
-                                    else {}
+                                "input_schema": _serialize_input_schema(
+                                    tool.inputSchema
                                 ),
                             }
                         )
@@ -269,6 +281,11 @@ async def process_input_stream(
     except SecondBrainException as exc:
         yield _sse_event({"type": "error", "message": exc.message})
     except Exception:
+        logger.exception(
+            "Unexpected error while processing input for user %s conversation %s",
+            user_id,
+            conversation_id,
+        )
         yield _sse_event(
             {"type": "error", "message": "Ein unerwarteter Fehler ist aufgetreten."}
         )
