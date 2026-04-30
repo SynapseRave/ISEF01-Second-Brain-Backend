@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -53,11 +53,13 @@ async def test_exchange_google_token_persists_credentials(
     ):
         mock_settings.google_calendar_client_secret = "test-secret"
         mock_settings.google_calendar_client_id = "test-client-id"
-        mock_client = mock_client_cls.return_value
-        mock_client.__aenter__.return_value = mock_client
-        mock_client.__aexit__.return_value = None
-        mock_client.post.return_value.status_code = 200
-        mock_client.post.return_value.json.return_value = google_tokens
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = google_tokens
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
         resp = await auth_client.post("/api/auth/google/token", json=payload)
 
