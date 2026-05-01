@@ -16,7 +16,9 @@ from app.services.vault.base import VaultService
 
 logger = logging.getLogger(__name__)
 
-_CALENDAR_LINE = re.compile(r"^\-\s+\[([^\]]+)\]\s+([^:]+):\s+(.+)$")
+# Matches: - [id] 2026-05-03T14:00:00+02:00: Title
+# [\dT:+\-Z.]+ covers both timed (with colons) and all-day (YYYY-MM-DD) formats.
+_CALENDAR_LINE = re.compile(r"^\-\s+\[([^\]]+)\]\s+([\dT:+\-Z.]+):\s+(.+)$")
 _TODO_LINE = re.compile(r"^\-\s+\[([^\]]+)\]\s+(.+)$")
 
 
