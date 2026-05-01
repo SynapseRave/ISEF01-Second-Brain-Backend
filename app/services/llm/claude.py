@@ -76,7 +76,7 @@ class ClaudeService(LLMService):
             async with client.messages.stream(
                 model=_DEFAULT_MODEL,
                 max_tokens=_MAX_TOKENS,
-                system=_SYSTEM_PROMPT,
+                system=_SYSTEM_PROMPT(),
                 messages=msgs,
             ) as stream:
                 async for text in stream.text_stream:
@@ -115,7 +115,7 @@ class ClaudeService(LLMService):
             response = await client.messages.create(
                 model=_DEFAULT_MODEL,
                 max_tokens=_MAX_TOKENS,
-                system=_SYSTEM_PROMPT,
+                system=_SYSTEM_PROMPT(),
                 messages=messages,
                 tools=anthropic_tools,
             )

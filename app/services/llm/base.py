@@ -2,15 +2,23 @@ import json
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from app.db.models.user_input import UserInput
 
-_SYSTEM_PROMPT = (
+_SYSTEM_PROMPT_TEMPLATE = (
     "Du bist ein intelligenter persönlicher Assistent namens 'Second Brain'. "
     "Du hilfst dem Nutzer dabei, Notizen zu verwalten, Aufgaben zu planen und "
     "Termine zu organisieren. Antworte immer präzise, hilfreich und auf Deutsch. "
-    "Nutze den bisherigen Gesprächsverlauf, um Kontext zu berücksichtigen."
+    "Nutze den bisherigen Gesprächsverlauf, um Kontext zu berücksichtigen. "
+    "Aktuelles Datum und Uhrzeit: {now}."
 )
+
+
+def _SYSTEM_PROMPT() -> str:
+    now = datetime.now().strftime("%A, %d. %B %Y, %H:%M Uhr")
+    return _SYSTEM_PROMPT_TEMPLATE.format(now=now)
+
 
 # content can be str or list (for tool result blocks)
 MessageDict = dict[str, object]
