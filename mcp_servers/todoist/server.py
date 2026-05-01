@@ -95,13 +95,16 @@ async def _list_tools() -> list[Tool]:
 @server.call_tool()
 async def _call_tool(name: str, arguments: dict) -> list[TextContent]:
     client = _get_client()
-    if name == "create_task":
-        return await _create_task(client, arguments)
-    if name == "list_tasks":
-        return await _list_tasks(client, arguments)
-    if name == "complete_task":
-        return await _complete_task(client, arguments)
-    return [TextContent(type="text", text=f"Unbekanntes Tool: {name}")]
+    try:
+        if name == "create_task":
+            return await _create_task(client, arguments)
+        if name == "list_tasks":
+            return await _list_tasks(client, arguments)
+        if name == "complete_task":
+            return await _complete_task(client, arguments)
+        return [TextContent(type="text", text=f"Unbekanntes Tool: {name}")]
+    except Exception as exc:
+        return [TextContent(type="text", text=f"Todoist-Fehler: {exc}")]
 
 
 async def _create_task(client: TodoistAPIAsync, args: dict) -> list[TextContent]:
@@ -127,19 +130,29 @@ async def _create_task(client: TodoistAPIAsync, args: dict) -> list[TextContent]
 
 
 async def _list_tasks(client: TodoistAPIAsync, args: dict) -> list[TextContent]:
-    kwargs = {}
+    tasks: list = []
     if "filter" in args:
-        kwargs["filter"] = args["filter"]
-    if "project_id" in args:
-        kwargs["project_id"] = args["project_id"]
+        iterator = await client.filter_tasks(query=args["filter"])
+        async for page in iterator:
+            tasks.extend(page)
+            if len(tasks) >= 20:
+                break
+    else:
+        kwargs: dict = {}
+        if "project_id" in args:
+            kwargs["project_id"] = args["project_id"]
+        iterator = await client.get_tasks(**kwargs)
+        async for page in iterator:
+            tasks.extend(page)
+            if len(tasks) >= 20:
+                break
 
-    tasks = await client.get_tasks(**kwargs)
     lines = [f"- [{t.id}] {t.content}" for t in tasks[:20]]
     return [TextContent(type="text", text="\n".join(lines) or "Keine Aufgaben gefunden.")]
 
 
 async def _complete_task(client: TodoistAPIAsync, args: dict) -> list[TextContent]:
-    await client.close_task(task_id=args["task_id"])
+    await client.complete_task(task_id=args["task_id"])
     return [TextContent(type="text", text=f"Aufgabe {args['task_id']} erledigt.")]
 
 

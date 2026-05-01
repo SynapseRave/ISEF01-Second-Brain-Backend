@@ -56,7 +56,7 @@ class ChatGPTService(LLMService):
         Returns:
             Full message list with system prompt first.
         """
-        system_msg: MessageDict = {"role": "system", "content": _SYSTEM_PROMPT}
+        system_msg: MessageDict = {"role": "system", "content": _SYSTEM_PROMPT()}
         base = (
             messages if messages is not None else self._build_messages(history, prompt)
         )
@@ -124,7 +124,7 @@ class ChatGPTService(LLMService):
         client = self._get_client()
         # Ensure system message is present
         if not messages or messages[0].get("role") != "system":
-            system_msg: MessageDict = {"role": "system", "content": _SYSTEM_PROMPT}
+            system_msg: MessageDict = {"role": "system", "content": _SYSTEM_PROMPT()}
             messages = [system_msg, *messages]
 
         openai_tools = [
