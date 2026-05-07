@@ -135,6 +135,7 @@ jobs:
             --from-literal=VAULT_ADDR="https://vault.secondbrain.bathon.business" \
             --from-literal=VAULT_ROLE_ID="${{ secrets.VAULT_ROLE_ID }}" \
             --from-literal=VAULT_SECRET_ID="${{ secrets.VAULT_SECRET_ID }}" \
+            --from-literal=VAULT_MOUNT="secondbrain/dev/backend" \
             --from-literal=MCP_NOTION_URL="http://mcp-notion.secondbrain-dev.svc.cluster.local:3001" \
             --from-literal=MCP_TODOIST_URL="http://mcp-todoist.secondbrain-dev.svc.cluster.local:3002" \
             --from-literal=MCP_GOOGLE_CALENDAR_URL="http://mcp-google-calendar.secondbrain-dev.svc.cluster.local:3003" \

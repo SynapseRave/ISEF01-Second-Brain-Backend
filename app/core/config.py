@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     )
     vault_role_id: str | None = None  # AppRole Role ID
     vault_secret_id: str | None = None  # AppRole Secret ID
+    vault_mount: str = "secret"  # KV v2 mount path
     # MCP server base URLs (Docker internal hostnames in production)
     mcp_notion_url: str = "http://localhost:3001"
     mcp_todoist_url: str = "http://localhost:3002"
