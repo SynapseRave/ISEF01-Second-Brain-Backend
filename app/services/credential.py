@@ -114,13 +114,23 @@ async def store_credential(
     path = _credential_path(user_id, payload.service)
     await vault.store(path, json.dumps(validated))
 
-    row = await db.execute(
+    result = await db.execute(
         select(UserCredential).where(
             UserCredential.user_id == user_id,
             UserCredential.service == payload.service.value,
         )
     )
-    return _row_to_response(row.scalar_one())
+    db_row = result.scalar_one_or_none()
+    if db_row is None:
+        db_row = UserCredential(
+            user_id=user_id,
+            service=payload.service.value,
+            encrypted_value=b"",
+        )
+        db.add(db_row)
+        await db.commit()
+        await db.refresh(db_row)
+    return _row_to_response(db_row)
 
 
 async def update_credential(
