@@ -141,6 +141,8 @@ jobs:
             --from-literal=MCP_OBSIDIAN_URL="http://mcp-obsidian.secondbrain-dev.svc.cluster.local:3004" \
             --from-literal=MCP_ONENOTE_URL="http://mcp-onenote.secondbrain-dev.svc.cluster.local:3005" \
             --from-literal=MCP_ENABLED="true" \
+            --from-literal=GOOGLE_CALENDAR_CLIENT_ID="${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}" \
+            --from-literal=GOOGLE_CALENDAR_CLIENT_SECRET="${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}" \
             --namespace secondbrain-dev \
             --dry-run=client -o yaml | kubectl apply -f -
 
