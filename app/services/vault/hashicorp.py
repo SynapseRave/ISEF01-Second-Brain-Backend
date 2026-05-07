@@ -3,6 +3,7 @@ import httpx
 from app.core.config import settings
 from app.services.vault.base import VaultService
 
+
 class HashiCorpVaultService(VaultService):
     """HashiCorp Vault integration using AppRole authentication.
 
